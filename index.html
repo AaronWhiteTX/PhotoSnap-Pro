@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" id="viewport">
+    <title>PhotoSnap Pro - Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>📸 PhotoSnap Pro</h1>
+        
+        <!-- Auth Section (Signup/Login/Reset) -->
+        <div id="authSection">
+            <div class="tabs">
+                <button class="tab active" onclick="showSignup()">Sign Up</button>
+                <button class="tab" onclick="showLogin()">Login</button>
+            </div>
+
+            <!-- Signup Form -->
+            <div id="signupForm" class="form-container">
+                <h2>Create Account</h2>
+                <input type="text" id="signupUsername" placeholder="Username" />
+                <input type="password" id="signupPassword" placeholder="Password" />
+                <button onclick="handleSignup()">Sign Up</button>
+                <p id="signupMessage" class="message"></p>
+            </div>
+
+            <!-- Login Form -->
+            <div id="loginForm" class="form-container" style="display:none;">
+                <h2>Login</h2>
+                <input type="text" id="loginUsername" placeholder="Username" />
+                <input type="password" id="loginPassword" placeholder="Password" />
+                <button onclick="handleLogin()">Login</button>
+                <p class="forgot-link" onclick="showForgotPassword()">Forgot Password?</p>
+                <p id="loginMessage" class="message"></p>
+            </div>
+
+            <!-- Forgot Password Form -->
+            <div id="forgotPasswordForm" class="form-container" style="display:none;">
+                <h2>Reset Password</h2>
+                <p class="reset-instruction">Enter your username to receive a reset code</p>
+                <input type="text" id="resetUsername" placeholder="Username" />
+                <button onclick="requestReset()">Get Reset Code</button>
+                <p class="forgot-link" onclick="showLogin()">Back to Login</p>
+                <p id="resetRequestMessage" class="message"></p>
+            </div>
+
+            <!-- Reset Password Form (with token) -->
+            <div id="resetPasswordForm" class="form-container" style="display:none;">
+                <h2>Enter Reset Code</h2>
+                <p class="reset-instruction">Check the screen for your reset code</p>
+                <input type="text" id="resetToken" placeholder="Reset Code" />
+                <input type="password" id="newPassword" placeholder="New Password" />
+                <button onclick="resetPassword()">Reset Password</button>
+                <p class="forgot-link" onclick="showLogin()">Back to Login</p>
+                <p id="resetPasswordMessage" class="message"></p>
+            </div>
+        </div>
+
+        <!-- Photo Dashboard Section (shown after login) -->
+        <div id="photoSection" style="display:none;">
+            <div class="dashboard-header">
+                <div class="user-info">
+                    <h2>Welcome, <span id="currentUser"></span>! 👋</h2>
+                    <p class="photo-count">Photos: <span id="photoCount">0</span></p>
+                </div>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+
+            <!-- Upload Section -->
+            <div class="upload-section">
+                <h3>📤 Upload Photo</h3>
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="photoInput" accept="image/*" multiple style="display:none;" />
+                    <div class="upload-placeholder" onclick="document.getElementById('photoInput').click()">
+                        <span class="upload-icon">📷</span>
+                        <p>Click to select photos or drag and drop</p>
+                        <p class="upload-hint">Supports: JPG, PNG, GIF</p>
+                    </div>
+                </div>
+                <div id="uploadPreview" class="upload-preview"></div>
+                <button id="uploadBtn" onclick="uploadPhotos()" style="display:none;">Upload Selected Photos</button>
+                <p id="uploadMessage" class="message"></p>
+            </div>
+
+            <!-- Photo Gallery -->
+            <div class="gallery-section">
+                <div class="gallery-header">
+                    <h3>🖼️ My Photos</h3>
+                    <button class="refresh-btn" onclick="loadPhotos()">↻ Refresh</button>
+                </div>
+                <div id="photosList" class="photos-grid">
+                    <p>Loading photos...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Photo Viewer Modal -->
+    <div id="photoModal" class="modal" onclick="closeModal()">
+        <span class="modal-close">&times;</span>
+        <img class="modal-content" id="modalImage">
+        <div class="modal-caption" id="modalCaption"></div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+    (function() {
+        const userAgent = navigator.userAgent.toLowerCase();
+        const hasMobileInUA = userAgent.includes('mobile');
+        const isMobileScreen = screen.width <= 428 && screen.height <= 926;
+        const viewport = document.getElementById('viewport');
+        
+        if (isMobileScreen && !hasMobileInUA) {
+            viewport.setAttribute('content', 'width=1200, initial-scale=0.3, maximum-scale=5.0, user-scalable=yes');
+            document.body.classList.add('desktop-on-mobile');
+        }
+    })();
+    </script>
+</body>
+</html>

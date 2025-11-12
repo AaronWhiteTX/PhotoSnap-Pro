@@ -1,0 +1,242 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+}
+
+/* Navbar */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 50px;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.logo {
+    font-size: 24px;
+    font-weight: bold;
+    color: #667eea;
+}
+
+.cta-btn {
+    background: #667eea;
+    color: white;
+    padding: 10px 25px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.cta-btn:hover {
+    background: #5568d3;
+}
+
+/* Hero Section */
+.hero {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 50px;
+    padding: 100px 50px;
+    align-items: center;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.hero-content h1 {
+    font-size: 4em;
+    color: white;
+    margin-bottom: 20px;
+    line-height: 1.2;
+}
+
+.hero-content p {
+    font-size: 1.3em;
+    color: rgba(255,255,255,0.9);
+    margin-bottom: 30px;
+}
+
+.cta-buttons {
+    display: flex;
+    gap: 15px;
+}
+
+.primary-btn, .secondary-btn {
+    padding: 15px 35px;
+    border: none;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.primary-btn {
+    background: white;
+    color: #667eea;
+}
+
+.primary-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.secondary-btn {
+    background: transparent;
+    color: white;
+    border: 2px solid white;
+}
+
+.secondary-btn:hover {
+    background: white;
+    color: #667eea;
+}
+
+.hero-image img {
+    width: 100%;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+/* Features Section */
+.features {
+    background: white;
+    padding: 80px 50px;
+}
+
+.features h2 {
+    text-align: center;
+    font-size: 2.5em;
+    color: #333;
+    margin-bottom: 50px;
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.feature {
+    text-align: center;
+    padding: 30px;
+}
+
+.feature-icon {
+    font-size: 3em;
+    margin-bottom: 20px;
+}
+
+.feature h3 {
+    font-size: 1.5em;
+    color: #333;
+    margin-bottom: 15px;
+}
+
+.feature p {
+    color: #666;
+    line-height: 1.6;
+}
+
+/* Footer */
+footer {
+    text-align: center;
+    padding: 30px;
+    background: rgba(0,0,0,0.2);
+    color: white;
+}
+
+/* Desktop on Mobile Adjustments - ONLY affects desktop view on mobile devices */
+body.desktop-on-mobile .hero {
+    padding: 50px 25px;
+}
+
+body.desktop-on-mobile .hero-content h1 {
+    font-size: 2.5em;
+}
+
+body.desktop-on-mobile .hero-content p {
+    font-size: 1em;
+}
+
+body.desktop-on-mobile .cta-buttons {
+    flex-direction: column;
+}
+
+body.desktop-on-mobile .primary-btn,
+body.desktop-on-mobile .secondary-btn {
+    padding: 12px 25px;
+    font-size: 14px;
+}
+
+body.desktop-on-mobile .navbar {
+    padding: 15px 25px;
+}
+
+body.desktop-on-mobile .logo {
+    font-size: 18px;
+}
+
+body.desktop-on-mobile .cta-btn {
+    padding: 8px 20px;
+    font-size: 14px;
+}
+
+body.desktop-on-mobile .features {
+    padding: 40px 25px;
+}
+
+body.desktop-on-mobile .features h2 {
+    font-size: 1.8em;
+}
+
+body.desktop-on-mobile .feature-icon {
+    font-size: 2em;
+}
+
+body.desktop-on-mobile .feature h3 {
+    font-size: 1.2em;
+}
+
+body.desktop-on-mobile .feature p {
+    font-size: 0.9em;
+}
+
+/* Responsive for actual mobile (native mobile view) */
+@media (max-width: 768px) {
+    .hero {
+        grid-template-columns: 1fr;
+        padding: 50px 20px;
+    }
+
+    .hero-content h1 {
+        font-size: 2.5em;
+    }
+
+    .features-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .navbar {
+        padding: 15px 20px;
+    }
+    
+    .logo {
+        display: flex;
+        align-items: center;
+        gap: 25px;
+        font-size: 16px;
+    }
+}

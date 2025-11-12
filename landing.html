@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" id="viewport">
+    <title>PhotoSnap Pro - Share Your Moments</title>
+    <link rel="stylesheet" href="landing.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">📸 PhotoSnap Pro</div>
+        <button class="cta-btn" onclick="window.location.href='index.html'">Get Started</button>
+    </nav>
+
+    <section class="hero">
+        <div class="hero-content">
+            <h1>Capture. Store. Share.</h1>
+            <p>Your personal photo cloud storage platform. Secure, simple, and beautiful.</p>
+            <div class="cta-buttons">
+                <button class="primary-btn" onclick="window.location.href='index.html'">Sign Up Free</button>
+                <button class="secondary-btn" onclick="window.location.href='index.html'">Login</button>
+            </div>
+        </div>
+        <div class="hero-image">
+            <img src="https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=800&q=80" alt="Photography" />
+        </div>
+    </section>
+
+    <section class="features">
+        <h2>Why Choose PhotoSnap Pro?</h2>
+        <div class="features-grid">
+            <div class="feature">
+                <div class="feature-icon">🔒</div>
+                <h3>Secure Storage</h3>
+                <p>Your photos are encrypted and stored securely in the cloud.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">☁️</div>
+                <h3>Cloud Access</h3>
+                <p>Access your photos from anywhere, anytime.</p>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">⚡</div>
+                <h3>Fast Upload</h3>
+                <p>Upload and share your photos in seconds.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <p>&copy; 2025 PhotoSnap Pro. Built with AWS.</p>
+    </footer>
+
+    <script>
+    (function() {
+        const userAgent = navigator.userAgent.toLowerCase();
+        const hasMobileInUA = userAgent.includes('mobile');
+        const isMobileScreen = screen.width <= 428 && screen.height <= 926;
+        const viewport = document.getElementById('viewport');
+        
+        if (isMobileScreen && !hasMobileInUA) {
+            viewport.setAttribute('content', 'width=1200, initial-scale=0.3, maximum-scale=5.0, user-scalable=yes');
+            document.body.classList.add('desktop-on-mobile');
+        }
+    })();
+    </script>
+</body>
+</html>
