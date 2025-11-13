@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shared Photo - PhotoSnap Pro</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .viewer-container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 900px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .brand-header {
+            margin-bottom: 20px;
+        }
+
+        .brand-header h1 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 5px;
+        }
+
+        .brand-header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .photo-frame {
+            margin: 20px 0;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+        }
+
+        .photo-frame img {
+            width: 100%;
+            height: auto;
+            max-height: 70vh;
+            object-fit: contain;
+            display: block;
+            background: #f5f5f5;
+        }
+
+        .cta-section {
+            margin-top: 30px;
+            padding: 25px;
+            background: linear-gradient(135deg, #f0f4ff 0%, #e8ecff 100%);
+            border-radius: 15px;
+            border: 2px solid #667eea;
+        }
+
+        .cta-section h2 {
+            color: #667eea;
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+
+        .cta-section p {
+            color: #555;
+            margin-bottom: 20px;
+            font-size: 16px;
+        }
+
+        .cta-button {
+            display: inline-block;
+            padding: 15px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .features {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .feature {
+            flex: 1;
+            min-width: 150px;
+            max-width: 200px;
+        }
+
+        .feature-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .feature-text {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .footer {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e0e0e0;
+            color: #999;
+            font-size: 12px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #667eea;
+            font-size: 18px;
+        }
+
+        .error {
+            text-align: center;
+            padding: 50px;
+            color: #f44336;
+        }
+
+        @media (max-width: 768px) {
+            .viewer-container {
+                padding: 20px;
+            }
+
+            .brand-header h1 {
+                font-size: 1.5em;
+            }
+
+            .cta-section h2 {
+                font-size: 1.2em;
+            }
+
+            .features {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="viewer-container">
+        <div class="brand-header">
+            <h1>📸 PhotoSnap Pro</h1>
+            <p>Someone shared a photo with you!</p>
+        </div>
+
+        <div id="photoContent">
+            <div class="loading">Loading photo...</div>
+        </div>
+
+        <div class="cta-section">
+            <h2>Love sharing photos?</h2>
+            <p>Create your own secure photo gallery with PhotoSnap Pro</p>
+            
+            <div class="features">
+                <div class="feature">
+                    <div class="feature-icon">🔒</div>
+                    <div class="feature-text">Secure Storage</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🔗</div>
+                    <div class="feature-text">Easy Sharing</div>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">☁️</div>
+                    <div class="feature-text">Cloud Backup</div>
+                </div>
+            </div>
+
+            <a href="https://photosnap.pro" class="cta-button">Start Free Today →</a>
+        </div>
+
+        <div class="footer">
+            Shared via PhotoSnap Pro • Secure cloud photo storage
+        </div>
+    </div>
+
+    <script>
+        // Get photo URL from query parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const photoUrl = urlParams.get('url');
+
+        if (photoUrl) {
+            // Create img element and load photo
+            const img = document.createElement('img');
+            img.src = decodeURIComponent(photoUrl);
+            
+            img.onload = () => {
+                const photoFrame = document.createElement('div');
+                photoFrame.className = 'photo-frame';
+                photoFrame.appendChild(img);
+                
+                document.getElementById('photoContent').innerHTML = '';
+                document.getElementById('photoContent').appendChild(photoFrame);
+            };
+
+            img.onerror = () => {
+                document.getElementById('photoContent').innerHTML = '<div class="error">⚠️ Failed to load photo. The link may have expired.</div>';
+            };
+        } else {
+            document.getElementById('photoContent').innerHTML = '<div class="error">⚠️ No photo URL provided.</div>';
+        }
+    </script>
+</body>
+</html>

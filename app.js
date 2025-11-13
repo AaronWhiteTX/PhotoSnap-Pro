@@ -520,8 +520,11 @@ async function sharePhoto() {
 
         const data = await response.json();
         
-        // Copy to clipboard
-        await navigator.clipboard.writeText(data.shareUrl);
+        // Create viewer URL with photo URL as parameter
+        const viewerUrl = `https://photosnap.pro/viewer.html?url=${encodeURIComponent(data.shareUrl)}`;
+        
+        // Copy viewer URL to clipboard
+        await navigator.clipboard.writeText(viewerUrl);
         
         shareMessage.textContent = `✓ Link copied! Valid for ${data.expiresIn}`;
         shareMessage.classList.add('show');
