@@ -233,6 +233,36 @@ document.addEventListener('DOMContentLoaded', function() {
             handleFiles(files);
         });
     }
+
+    // Add Enter key support for all forms
+    // Signup form
+    document.getElementById('signupUsername')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleSignup();
+    });
+    document.getElementById('signupPassword')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleSignup();
+    });
+
+    // Login form
+    document.getElementById('loginUsername')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleLogin();
+    });
+    document.getElementById('loginPassword')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleLogin();
+    });
+
+    // Forgot password form
+    document.getElementById('resetUsername')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') requestReset();
+    });
+
+    // Reset password form
+    document.getElementById('resetToken')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') resetPassword();
+    });
+    document.getElementById('newPassword')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') resetPassword();
+    });
 });
 
 function handleFileSelect(e) {
