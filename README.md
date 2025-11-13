@@ -2,6 +2,78 @@
 
 This project is a modern, serverless web application that allows users to sign up, log in, and securely manage and **share** their own photos stored in a private S3 bucket folder. It is designed following the principle of **least-privilege access** using AWS Identity and Access Management (IAM) and AWS Security Token Service (STS).
 
+## Architecture Diagram
+```mermaid
+graph TB
+    subgraph Client["Client Layer"]
+        User[User Browser/Mobile]
+    end
+    
+    subgraph DNS["DNS & CDN Layer"]
+        Route53[Route 53]
+        CloudFront[CloudFront]
+        ACM[Certificate Manager]
+    end
+    
+    subgraph API["API & Auth Layer"]
+        APIGW[API Gateway]
+        Lambda[Lambda Function]
+    end
+    
+    subgraph Frontend["Frontend Layer"]
+        S3Frontend[S3 Static Hosting]
+    end
+    
+    subgraph Storage["Storage Layer"]
+        DynamoDB[(DynamoDB)]
+        S3Photos[(S3 Photos)]
+    end
+    
+    subgraph Security["Security Layer"]
+        IAM[IAM]
+        STS[STS]
+    end
+    
+    subgraph Monitor["Monitoring"]
+        CloudWatch[CloudWatch]
+    end
+    
+    User --> Route53
+    Route53 --> CloudFront
+    CloudFront --> ACM
+    CloudFront --> S3Frontend
+    CloudFront --> User
+    
+    User --> APIGW
+    APIGW --> Lambda
+    Lambda --> APIGW
+    APIGW --> User
+    
+    Lambda --> DynamoDB
+    Lambda --> IAM
+    Lambda --> STS
+    STS --> Lambda
+    
+    User --> S3Photos
+    S3Photos --> IAM
+    
+    Lambda --> CloudWatch
+    APIGW --> CloudWatch
+    
+    style Route53 fill:#8c4fff
+    style CloudFront fill:#ff9900
+    style ACM fill:#dd344c
+    style S3Frontend fill:#569a31
+    style S3Photos fill:#569a31
+    style APIGW fill:#ff4f8b
+    style Lambda fill:#ff9900
+    style DynamoDB fill:#527fff
+    style IAM fill:#dd344c
+    style CloudWatch fill:#ff4f8b
+```
+
+*Figure 1: Serverless architecture utilizing AWS services for authentication, storage, and global content delivery.*
+
 ## Solution Architecture
 
 The application is deployed entirely on AWS using a serverless approach. 
