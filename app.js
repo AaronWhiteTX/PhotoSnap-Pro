@@ -290,7 +290,7 @@ async function uploadPhotos() {
         return;
     }
 
-    if (!currentCredentials) {
+    if (!currentUsername) {
         showMessage(messageEl, 'Session expired. Please login again.', 'error');
         return;
     }
@@ -302,11 +302,28 @@ async function uploadPhotos() {
 
     for (const file of selectedFiles) {
         try {
-            const timestamp = Date.now();
-            const fileName = `${timestamp}-${file.name}`;
-            const s3Url = `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/${s3Config.folder}${fileName}`;
+            // Step 1: Get pre-signed URL from Lambda
+            const urlResponse = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'get-upload-url',
+                    username: currentUsername,
+                    fileName: file.name,
+                    fileType: file.type
+                })
+            });
+
+            if (!urlResponse.ok) {
+                failCount++;
+                console.error('Failed to get upload URL:', urlResponse.status);
+                continue;
+            }
+
+            const urlData = await urlResponse.json();
             
-            const response = await fetch(s3Url, {
+            // Step 2: Upload directly to S3 using pre-signed URL
+            const uploadResponse = await fetch(urlData.uploadUrl, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': file.type,
@@ -314,15 +331,15 @@ async function uploadPhotos() {
                 body: file
             });
 
-            if (response.ok) {
+            if (uploadResponse.ok) {
                 successCount++;
             } else {
                 failCount++;
-                console.error('S3 Upload Failed:', response.status, response.statusText);
+                console.error('S3 Upload Failed:', uploadResponse.status, uploadResponse.statusText);
             }
         } catch (error) {
             failCount++;
-            console.error('S3 Upload Error:', error);
+            console.error('Upload Error:', error);
         }
     }
 
@@ -342,19 +359,20 @@ async function loadPhotos() {
     const photosListEl = document.getElementById('photosList');
     photosListEl.innerHTML = '<p>Loading photos...</p>';
 
-    if (!currentCredentials) {
+    if (!currentUsername) {
         photosListEl.innerHTML = '<p class="error">Session expired. Please login again.</p>';
         return;
     }
 
     try {
-        const listUrl = `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/?list-type=2&prefix=${s3Config.folder}`;
-        
-        const response = await fetch(listUrl, {
-            headers: {
-                'Authorization': `AWS4-HMAC-SHA256 Credential=${currentCredentials.accessKeyId}`,
-                'x-amz-security-token': currentCredentials.sessionToken
-            }
+        // Get photos list with pre-signed URLs from Lambda
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'list-photos',
+                username: currentUsername
+            })
         });
 
         if (!response.ok) {
@@ -362,30 +380,23 @@ async function loadPhotos() {
             return;
         }
 
-        const xmlText = await response.text();
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
-        const contents = xmlDoc.getElementsByTagName('Contents');
+        const data = await response.json();
+        const photos = data.photos || [];
 
         let photoCount = 0;
         photosListEl.innerHTML = '';
 
-        for (let item of contents) {
-            const key = item.getElementsByTagName('Key')[0].textContent;
-            if (key.endsWith('/')) continue;
-
+        for (let photo of photos) {
             photoCount++;
-            const fileName = key.split('/').pop();
-            const photoUrl = `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/${key}`;
             
             const photoDiv = document.createElement('div');
             photoDiv.className = 'photo-item';
             photoDiv.innerHTML = `
-                <img src="${photoUrl}" alt="${fileName}" onclick="openModal('${photoUrl}', '${fileName}')" />
+                <img src="${photo.url}" alt="${photo.fileName}" onclick="openModal('${photo.url}', '${photo.fileName}')" />
                 <div class="photo-overlay">
-                    <p class="photo-name">${fileName}</p>
+                    <p class="photo-name">${photo.fileName}</p>
                 </div>
-                <button class="delete-btn" onclick="openDeleteModal('${key}', event)">Delete</button>
+                <button class="delete-btn" onclick="openDeleteModal('${photo.key}', event)">Delete</button>
             `;
             photosListEl.appendChild(photoDiv);
         }
