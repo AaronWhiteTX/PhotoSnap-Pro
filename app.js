@@ -4,6 +4,7 @@ let currentUsername = null;
 let s3Config = null;
 let selectedFiles = [];
 let resetUsername = '';
+let currentPhotoKey = null;
 
 // Tab switching
 function showSignup() {
@@ -422,7 +423,7 @@ async function loadPhotos() {
             const photoDiv = document.createElement('div');
             photoDiv.className = 'photo-item';
             photoDiv.innerHTML = `
-                <img src="${photo.url}" alt="${photo.fileName}" onclick="openModal('${photo.url}', '${photo.fileName}')" />
+                <img src="${photo.url}" alt="${photo.fileName}" onclick="openModal('${photo.url}', '${photo.fileName}', '${photo.key}')" />
                 <div class="photo-overlay">
                     <p class="photo-name">${photo.fileName}</p>
                 </div>
@@ -468,18 +469,71 @@ function openDeleteModal(key, event) {
     };
 }
 
-function openModal(photoUrl, fileName) {
+function openModal(photoUrl, fileName, photoKey) {
     const modal = document.getElementById('photoModal');
     const modalImg = document.getElementById('modalImage');
     const caption = document.getElementById('modalCaption');
+    const shareMessage = document.getElementById('shareMessage');
     
     modal.style.display = 'block';
     modalImg.src = photoUrl;
     caption.textContent = fileName;
+    currentPhotoKey = photoKey;
+    
+    // Clear any previous share message
+    if (shareMessage) {
+        shareMessage.classList.remove('show');
+        shareMessage.textContent = '';
+    }
 }
 
 function closeModal() {
     document.getElementById('photoModal').style.display = 'none';
+    currentPhotoKey = null;
+}
+
+async function sharePhoto() {
+    const shareMessage = document.getElementById('shareMessage');
+    
+    if (!currentPhotoKey) {
+        shareMessage.textContent = 'Error: No photo selected';
+        shareMessage.classList.add('show');
+        setTimeout(() => shareMessage.classList.remove('show'), 3000);
+        return;
+    }
+
+    try {
+        // Get shareable URL from Lambda
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'get-share-url',
+                username: currentUsername,
+                fileName: currentPhotoKey
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to generate share link');
+        }
+
+        const data = await response.json();
+        
+        // Copy to clipboard
+        await navigator.clipboard.writeText(data.shareUrl);
+        
+        shareMessage.textContent = `✓ Link copied! Valid for ${data.expiresIn}`;
+        shareMessage.classList.add('show');
+        
+        setTimeout(() => shareMessage.classList.remove('show'), 4000);
+        
+    } catch (error) {
+        console.error('Share error:', error);
+        shareMessage.textContent = 'Failed to generate share link';
+        shareMessage.classList.add('show');
+        setTimeout(() => shareMessage.classList.remove('show'), 3000);
+    }
 }
 
 async function deletePhoto(key) {
@@ -529,6 +583,7 @@ function logout() {
     currentUsername = null;
     s3Config = null;
     selectedFiles = [];
+    currentPhotoKey = null;
     document.getElementById('authSection').style.display = 'block';
     document.getElementById('photoSection').style.display = 'none';
     document.getElementById('loginUsername').value = '';
