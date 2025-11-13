@@ -454,14 +454,31 @@ function closeModal() {
 
 async function deletePhoto(key) {
     try {
-        const deleteUrl = `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/${key}`;
-        
-        const response = await fetch(deleteUrl, {
-            method: 'DELETE',
-            headers: {}
+        // Step 1: Get pre-signed delete URL from Lambda
+        const urlResponse = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'get-delete-url',
+                username: currentUsername,
+                fileName: key
+            })
         });
 
-        if (response.ok) {
+        if (!urlResponse.ok) {
+            console.error('Failed to get delete URL:', urlResponse.status);
+            showMessage(document.getElementById('uploadMessage'), 'Delete failed. Could not get authorization.', 'error');
+            return;
+        }
+
+        const urlData = await urlResponse.json();
+        
+        // Step 2: Delete using pre-signed URL
+        const response = await fetch(urlData.deleteUrl, {
+            method: 'DELETE'
+        });
+
+        if (response.ok || response.status === 204) {
             showMessage(document.getElementById('uploadMessage'), 'Photo deleted successfully', 'success');
             setTimeout(() => {
                 showMessage(document.getElementById('uploadMessage'), '', '');
