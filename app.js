@@ -520,8 +520,9 @@ async function sharePhoto() {
 
         const data = await response.json();
         
-        // Create viewer URL with photo URL as parameter
-        const viewerUrl = `https://photosnap.pro/viewer.html?url=${encodeURIComponent(data.shareUrl)}`;
+        // Base64 encode the S3 URL to avoid token corruption (+ signs become spaces with URL encoding)
+        const base64Url = btoa(data.shareUrl);
+        const viewerUrl = `https://photosnap.pro/viewer.html?u=${base64Url}`;
         
         // Copy viewer URL to clipboard
         await navigator.clipboard.writeText(viewerUrl);

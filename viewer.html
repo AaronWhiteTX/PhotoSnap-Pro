@@ -205,27 +205,34 @@
     </div>
 
     <script>
-        // Get photo URL from query parameter
+        // Get Base64 encoded photo URL from query parameter
         const urlParams = new URLSearchParams(window.location.search);
-        const photoUrl = urlParams.get('url');
+        const base64Url = urlParams.get('u');
 
-        if (photoUrl) {
-            // Create img element and load photo
-            const img = document.createElement('img');
-            img.src = decodeURIComponent(photoUrl);
-            
-            img.onload = () => {
-                const photoFrame = document.createElement('div');
-                photoFrame.className = 'photo-frame';
-                photoFrame.appendChild(img);
+        if (base64Url) {
+            try {
+                // Base64 decode to get the actual S3 URL
+                const photoUrl = atob(base64Url);
                 
-                document.getElementById('photoContent').innerHTML = '';
-                document.getElementById('photoContent').appendChild(photoFrame);
-            };
+                // Create img element and load photo
+                const img = document.createElement('img');
+                img.src = photoUrl;
+                
+                img.onload = () => {
+                    const photoFrame = document.createElement('div');
+                    photoFrame.className = 'photo-frame';
+                    photoFrame.appendChild(img);
+                    
+                    document.getElementById('photoContent').innerHTML = '';
+                    document.getElementById('photoContent').appendChild(photoFrame);
+                };
 
-            img.onerror = () => {
-                document.getElementById('photoContent').innerHTML = '<div class="error">⚠️ Failed to load photo. The link may have expired.</div>';
-            };
+                img.onerror = () => {
+                    document.getElementById('photoContent').innerHTML = '<div class="error">⚠️ Failed to load photo. The link may have expired.</div>';
+                };
+            } catch (e) {
+                document.getElementById('photoContent').innerHTML = '<div class="error">⚠️ Invalid share link.</div>';
+            }
         } else {
             document.getElementById('photoContent').innerHTML = '<div class="error">⚠️ No photo URL provided.</div>';
         }
