@@ -275,6 +275,8 @@ All requests are POST with JSON body:
 ```
 photosnap-pro/
 ├── README.md
+├── images/
+│   ├── Visual Diagram.png          # Architecture diagram (high-res)
 ├── docs/
 │   ├── 01-architecture-diagram.md
 │   ├── 02-deployed-environment.md
