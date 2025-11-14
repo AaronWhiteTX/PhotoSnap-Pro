@@ -1,8 +1,8 @@
 # PhotoSnapPro: Serverless Photo Gallery with Secure Sharing
 
-A modern, serverless web application that allows users to sign up, authenticate, and securely manage and **share** their photos with time-limited public links. Built entirely on AWS with custom domain, global CDN, and security-first architecture using pre-signed URLs and least-privilege access controls.
+A modern, serverless web application that allows users to sign up, authenticate, and securely manage and share their photos with time-limited public links. Built entirely on AWS with custom domain, global CDN, and security-first architecture using pre-signed URLs and least-privilege access controls.
 
-🔗 **Live Demo:** [https://photosnap.pro](https://photosnap.pro)
+**Live Demo:** [https://photosnap.pro](https://photosnap.pro)
 
 ## Architecture Diagram
 ```mermaid
@@ -79,25 +79,27 @@ graph TB
 ## Features
 
 ### Core Functionality
-- ✅ **User Authentication:** Secure signup/login with SHA256 password hashing
-- ✅ **Password Reset:** Token-based password recovery system (15-minute expiry)
-- ✅ **Photo Upload:** Drag-and-drop or click-to-upload with preview
-- ✅ **Photo Gallery:** Grid view with hover effects and modal viewer
-- ✅ **Photo Sharing:** Generate time-limited public share links (7-day expiry)
-- ✅ **Photo Deletion:** Secure deletion with confirmation modal
+- **User Authentication:** Secure signup/login with SHA256 password hashing
+- **Password Reset:** Token-based password recovery system (15-minute expiry)
+- **Photo Upload:** Drag-and-drop or click-to-upload with preview
+- **Photo Gallery:** Grid view with hover effects and modal viewer
+- **Branded Photo Sharing:** Generate shareable links with marketing viewer (7-day expiry)
+- **Photo Deletion:** Secure deletion with confirmation modal
 
 ### Security Features
-- 🔒 **Pre-signed URLs:** All S3 operations use temporary, signed URLs - zero credentials in browser
-- 🔒 **Least-Privilege IAM:** Per-user IAM roles with folder-level S3 access only
-- 🔒 **STS Temporary Credentials:** 1-hour session tokens for authenticated operations
-- 🔒 **SHA256 Password Hashing:** Passwords never stored in plaintext
-- 🔒 **HTTPS/SSL:** CloudFront with ACM certificate for encrypted traffic
+- **Pre-signed URLs:** All S3 operations use temporary, signed URLs - zero credentials in browser
+- **Base64 URL Encoding:** Preserves AWS security tokens in share links
+- **Least-Privilege IAM:** Per-user IAM roles with folder-level S3 access only
+- **STS Temporary Credentials:** 1-hour session tokens for authenticated operations
+- **SHA256 Password Hashing:** Passwords never stored in plaintext
+- **HTTPS/SSL:** CloudFront with ACM certificate for encrypted traffic
 
 ### Infrastructure
-- 🌐 **Custom Domain:** photosnap.pro with Route 53 DNS management
-- 🚀 **Global CDN:** CloudFront distribution for low-latency worldwide access
-- 📱 **Mobile Responsive:** Desktop and mobile optimized UI
-- ⚡ **Serverless:** Auto-scaling with zero server management
+- **Custom Domain:** photosnap.pro with Route 53 DNS management
+- **Global CDN:** CloudFront distribution for low-latency worldwide access
+- **Mobile Responsive:** Desktop and mobile optimized UI
+- **Serverless:** Auto-scaling with zero server management
+- **Cost-Optimized:** $0.50/month (Route 53 only, everything else free tier)
 
 ## Solution Architecture
 
@@ -133,17 +135,21 @@ graph TB
 - Follows AWS security best practices
 
 ### 2. Branded Photo Sharing with Marketing Funnel
-**Feature:** Users can share photos via public links that display in a branded viewer page.
+**Feature:** Users can share photos via public links that display in a branded viewer page with conversion-optimized CTA.
 
 **Implementation:**
-- Share button generates viewer URL: `photosnap.pro/viewer.html?url=<presigned-url>`
+- Share button generates viewer URL: `photosnap.pro/viewer.html?u=<base64-encoded-url>`
 - Viewer page displays photo with PhotoSnap branding and "Start Free Today" CTA
 - Converts photo sharing into marketing opportunity (viral growth loop)
 
 **Technical Details:**
-- Lambda `get-share-url` action generates 7-day pre-signed URLs
-- Frontend wraps S3 URL in viewer page query parameter
-- Viewer extracts and displays photo with branding
+- Lambda `get-share-url` action generates 7-day pre-signed S3 URLs
+- Frontend uses Base64 encoding (`btoa()`) to encode S3 URL in query parameter
+- Viewer uses Base64 decoding (`atob()`) to extract and display photo
+- Base64 encoding prevents AWS security token corruption (preserves `+` signs and special characters)
+
+**Challenge Solved:**
+Initial implementation used URL encoding (`encodeURIComponent()`) which converted plus signs in AWS security tokens to spaces, causing `InvalidToken` errors. Base64 encoding preserves all characters perfectly.
 
 ### 3. CORS Configuration
 **Challenge:** API Gateway's automatic CORS injection failed to apply headers correctly for cross-origin requests.
@@ -152,6 +158,7 @@ graph TB
 - Configured HTTP API CORS settings with specific origin (`https://photosnap.pro`)
 - Lambda explicitly handles OPTIONS preflight requests returning 200 status
 - All responses include `Access-Control-Allow-Origin` header
+- S3 photos bucket CORS allows GET requests from photosnap.pro
 
 ### 4. Custom Domain with CloudFront
 **Setup:**
@@ -302,12 +309,13 @@ aws cloudfront create-invalidation \
 ## Security Considerations
 
 1. **No Credentials in Browser:** Pre-signed URLs eliminate need for AWS credentials in client-side code
-2. **Time-Limited Access:** All signed URLs expire automatically (5 min to 7 days depending on operation)
-3. **Folder Isolation:** IAM policies restrict users to their own S3 folder only
-4. **HTTPS Only:** CloudFront enforces HTTPS, redirecting HTTP requests
-5. **CORS Properly Configured:** Prevents unauthorized cross-origin requests
-6. **Password Hashing:** SHA256 ensures passwords never stored in plaintext
-7. **Token Expiration:** Password reset tokens expire after 15 minutes
+2. **Base64 Encoding:** Preserves AWS security tokens in shareable URLs (prevents `+` sign corruption)
+3. **Time-Limited Access:** All signed URLs expire automatically (5 min to 7 days depending on operation)
+4. **Folder Isolation:** IAM policies restrict users to their own S3 folder only
+5. **HTTPS Only:** CloudFront enforces HTTPS, redirecting HTTP requests
+6. **CORS Properly Configured:** Prevents unauthorized cross-origin requests
+7. **Password Hashing:** SHA256 ensures passwords never stored in plaintext
+8. **Token Expiration:** Password reset tokens expire after 15 minutes
 
 ## Performance Optimizations
 
@@ -315,18 +323,20 @@ aws cloudfront create-invalidation \
 - **Direct S3 Upload:** Files uploaded directly to S3 without Lambda proxy (lower latency)
 - **Lazy Loading:** Photos loaded on-demand in gallery view
 - **Pre-signed URL Caching:** View URLs valid for 1 hour to reduce Lambda invocations
+- **Base64 Encoding:** Lightweight encoding for share URLs (no server processing)
 - **Serverless Auto-scaling:** Lambda and API Gateway scale automatically with demand
 
 ## Future Enhancements
 
-- [ ] Photo albums/collections
-- [ ] Image compression and thumbnail generation
-- [ ] Email-based password reset (SES integration)
-- [ ] Social login (Cognito integration)
-- [ ] Analytics dashboard (view counts, shares)
-- [ ] Batch photo operations
-- [ ] Photo editing capabilities
-- [ ] Mobile app (React Native)
+- Photo albums/collections
+- Image compression and thumbnail generation
+- Email-based password reset (SES integration)
+- Social login (Cognito integration)
+- Analytics dashboard (view counts, shares)
+- Batch photo operations
+- Photo editing capabilities
+- Mobile app (React Native)
+- Share link analytics (track views)
 
 ## Technologies Used
 
@@ -339,6 +349,7 @@ aws cloudfront create-invalidation \
 - **DNS:** Amazon Route 53
 - **Security:** AWS IAM, AWS STS, AWS ACM
 - **Monitoring:** Amazon CloudWatch
+- **Encoding:** Base64 for secure URL parameter passing
 
 ## Cost Optimization
 
@@ -348,8 +359,12 @@ This serverless architecture is highly cost-effective:
 - **S3:** Pay for storage and bandwidth only
 - **CloudFront:** Free tier includes 1TB data transfer
 - **API Gateway:** Pay per request (1M free requests/month)
+- **Route 53:** $0.50/month for hosted zone
 
-**Estimated monthly cost for 1,000 users:** ~$5-10 USD
+**Estimated monthly cost:**
+- **Personal use (< 100 users):** $0.50/month
+- **Small business (1,000 users):** $5-10/month
+- **All within AWS free tier except Route 53**
 
 ## License
 
@@ -357,7 +372,7 @@ MIT License - feel free to use this project for learning or commercial purposes.
 
 ## Author
 
-Built as a portfolio project demonstrating serverless architecture, AWS security best practices, and modern web development.
+Built as a portfolio project demonstrating serverless architecture, AWS security best practices, modern web development, and growth marketing through viral sharing loops.
 
 ---
 
