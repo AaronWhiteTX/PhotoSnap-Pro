@@ -6,7 +6,6 @@ let selectedFiles = [];
 let resetUsername = '';
 let currentPhotoKey = null;
 
-// Tab switching
 function showSignup() {
     document.getElementById('signupForm').style.display = 'flex';
     document.getElementById('loginForm').style.display = 'none';
@@ -32,7 +31,6 @@ function showForgotPassword() {
     document.getElementById('resetPasswordForm').style.display = 'none';
 }
 
-// Handle Signup
 async function handleSignup() {
     const username = document.getElementById('signupUsername').value.trim();
     const password = document.getElementById('signupPassword').value;
@@ -69,7 +67,6 @@ async function handleSignup() {
     }
 }
 
-// Handle Login
 async function handleLogin() {
     const username = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value;
@@ -113,7 +110,6 @@ async function handleLogin() {
     }
 }
 
-// Request Password Reset
 async function requestReset() {
     const username = document.getElementById('resetUsername').value.trim();
     const messageEl = document.getElementById('resetRequestMessage');
@@ -162,7 +158,6 @@ async function requestReset() {
     }
 }
 
-// Reset Password with Token
 async function resetPassword() {
     const token = document.getElementById('resetToken').value.trim();
     const newPassword = document.getElementById('newPassword').value;
@@ -208,7 +203,6 @@ async function resetPassword() {
     }
 }
 
-// File input change handler
 document.addEventListener('DOMContentLoaded', function() {
     const photoInput = document.getElementById('photoInput');
     const uploadArea = document.getElementById('uploadArea');
@@ -235,8 +229,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Add Enter key support for all forms
-    // Signup form
     document.getElementById('signupUsername')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleSignup();
     });
@@ -244,7 +236,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.key === 'Enter') handleSignup();
     });
 
-    // Login form
     document.getElementById('loginUsername')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') handleLogin();
     });
@@ -252,12 +243,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (e.key === 'Enter') handleLogin();
     });
 
-    // Forgot password form
     document.getElementById('resetUsername')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') requestReset();
     });
 
-    // Reset password form
     document.getElementById('resetToken')?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') resetPassword();
     });
@@ -333,7 +322,6 @@ async function uploadPhotos() {
 
     for (const file of selectedFiles) {
         try {
-            // Step 1: Get pre-signed URL from Lambda
             const urlResponse = await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -353,7 +341,6 @@ async function uploadPhotos() {
 
             const urlData = await urlResponse.json();
             
-            // Step 2: Upload directly to S3 using pre-signed URL
             const uploadResponse = await fetch(urlData.uploadUrl, {
                 method: 'PUT',
                 headers: {
@@ -396,7 +383,6 @@ async function loadPhotos() {
     }
 
     try {
-        // Get photos list with pre-signed URLs from Lambda
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -480,7 +466,6 @@ function openModal(photoUrl, fileName, photoKey) {
     caption.textContent = fileName;
     currentPhotoKey = photoKey;
     
-    // Clear any previous share message
     if (shareMessage) {
         shareMessage.classList.remove('show');
         shareMessage.textContent = '';
@@ -503,7 +488,6 @@ async function sharePhoto() {
     }
 
     try {
-        // Get shareable URL from Lambda
         const response = await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -520,29 +504,88 @@ async function sharePhoto() {
 
         const data = await response.json();
         
-        // Base64 encode the S3 URL to avoid token corruption (+ signs become spaces with URL encoding)
         const base64Url = btoa(data.shareUrl);
-        const viewerUrl = `https://photosnap.pro/viewer.html?u=${base64Url}`;
+        const longViewerUrl = `https://photosnap.pro/viewer.html?u=${base64Url}`;
         
-        // Copy viewer URL to clipboard
-        await navigator.clipboard.writeText(viewerUrl);
+        const shortResponse = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'create-short-url',
+                longUrl: longViewerUrl
+            })
+        });
         
-        shareMessage.textContent = `✓ Link copied! Valid for ${data.expiresIn}`;
+        if (!shortResponse.ok) {
+            throw new Error('Failed to create short URL');
+        }
+        
+        const shortData = await shortResponse.json();
+        const shareUrl = shortData.shortUrl;
+        
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Photo from PhotoSnap',
+                    text: 'Check out this photo!',
+                    url: shareUrl
+                });
+                shareMessage.textContent = `✓ Shared! Valid for ${data.expiresIn}`;
+                shareMessage.classList.add('show');
+                setTimeout(() => shareMessage.classList.remove('show'), 3000);
+                return;
+            } catch (shareError) {
+                if (shareError.name === 'AbortError') {
+                    return;
+                }
+            }
+        }
+        
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(shareUrl);
+                shareMessage.textContent = `✓ Link copied! Valid for ${data.expiresIn}`;
+                shareMessage.classList.add('show');
+                setTimeout(() => shareMessage.classList.remove('show'), 4000);
+                return;
+            }
+            
+            const textArea = document.createElement('textarea');
+            textArea.value = shareUrl;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            
+            if (successful) {
+                shareMessage.textContent = `✓ Link copied! Valid for ${data.expiresIn}`;
+                shareMessage.classList.add('show');
+                setTimeout(() => shareMessage.classList.remove('show'), 4000);
+                return;
+            }
+        } catch (clipboardError) {
+            console.error('Clipboard error:', clipboardError);
+        }
+        
+        shareMessage.innerHTML = `<div style="word-break: break-all; font-size: 11px; max-height: 80px; overflow-y: auto; line-height: 1.3;">Tap to select, then copy:<br><input type="text" value="${shareUrl}" readonly style="width:100%; font-size:10px; padding:5px;" onclick="this.select()"></div>`;
         shareMessage.classList.add('show');
-        
-        setTimeout(() => shareMessage.classList.remove('show'), 4000);
+        setTimeout(() => shareMessage.classList.remove('show'), 15000);
         
     } catch (error) {
         console.error('Share error:', error);
-        shareMessage.textContent = 'Failed to generate share link';
+        shareMessage.textContent = 'Error: ' + error.message;
         shareMessage.classList.add('show');
-        setTimeout(() => shareMessage.classList.remove('show'), 3000);
+        setTimeout(() => shareMessage.classList.remove('show'), 5000);
     }
 }
 
 async function deletePhoto(key) {
     try {
-        // Step 1: Get pre-signed delete URL from Lambda
         const urlResponse = await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -561,7 +604,6 @@ async function deletePhoto(key) {
 
         const urlData = await urlResponse.json();
         
-        // Step 2: Delete using pre-signed URL
         const response = await fetch(urlData.deleteUrl, {
             method: 'DELETE'
         });
