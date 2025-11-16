@@ -283,7 +283,7 @@ function displayPreview() {
             previewItem.className = 'preview-item';
             previewItem.innerHTML = `
                 <img src="${e.target.result}" alt="${file.name}" />
-                <button class="remove-preview" onclick="removePreview(${index})">✕</button>
+                <button class="remove-preview" onclick="removePreview(${index})">âœ•</button>
             `;
             previewContainer.appendChild(previewItem);
         };
@@ -530,7 +530,7 @@ async function sharePhoto() {
                     text: 'Check out this photo!',
                     url: shareUrl
                 });
-                shareMessage.textContent = `✓ Shared! Valid for ${data.expiresIn}`;
+                shareMessage.textContent = `âœ“ Shared! Valid for ${data.expiresIn}`;
                 shareMessage.classList.add('show');
                 setTimeout(() => shareMessage.classList.remove('show'), 3000);
                 return;
@@ -544,7 +544,7 @@ async function sharePhoto() {
         try {
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 await navigator.clipboard.writeText(shareUrl);
-                shareMessage.textContent = `✓ Link copied! Valid for ${data.expiresIn}`;
+                shareMessage.textContent = `âœ“ Link copied! Valid for ${data.expiresIn}`;
                 shareMessage.classList.add('show');
                 setTimeout(() => shareMessage.classList.remove('show'), 4000);
                 return;
@@ -563,7 +563,7 @@ async function sharePhoto() {
             document.body.removeChild(textArea);
             
             if (successful) {
-                shareMessage.textContent = `✓ Link copied! Valid for ${data.expiresIn}`;
+                shareMessage.textContent = `âœ“ Link copied! Valid for ${data.expiresIn}`;
                 shareMessage.classList.add('show');
                 setTimeout(() => shareMessage.classList.remove('show'), 4000);
                 return;

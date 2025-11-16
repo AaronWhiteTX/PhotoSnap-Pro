@@ -307,8 +307,6 @@ All requests are POST with JSON body:
 ```
 photosnap-pro/
 ├── README.md
-├── images/
-│   ├── Visual Diagram.png          # Architecture diagram (high-res)
 ├── docs/
 │   ├── 01-architecture-diagram.md
 │   ├── 02-deployed-environment.md
@@ -324,137 +322,53 @@ photosnap-pro/
 │   └── app.js              # Frontend logic (auth, upload, share with URL shortener)
 └── backend/
     └── lambda/
-        └── index.mjs       # Lambda function for all backend operations + URL shortening
+        ├── auth-function/
+        │   └── index.mjs   # PhotoSnapAuthFunction: auth, photos, URL shortening
+        └── redirect-function/
+            └── index.mjs   # PhotoSnapRedirect: short link resolution and redirects
 ```
 
-## Setup and Deployment
+## Deployment Architecture
 
-### Prerequisites
-- AWS Account
-- Custom domain (optional but recommended)
-- AWS CLI configured
+### Infrastructure Components
 
-### 1. DynamoDB Setup
-```bash
-# Create users table with PITR enabled
-aws dynamodb create-table \
-  --table-name PhotoSnapUsers \
-  --attribute-definitions AttributeName=username,AttributeType=S \
-  --key-schema AttributeName=username,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST
+**Database Layer:**
+- DynamoDB users table created with on-demand billing mode for cost efficiency
+- DynamoDB short links table with TTL enabled for automatic expiration after 7 days
+- Point-in-Time Recovery enabled with 35-day retention window for data protection
+- Partition key configured on username attribute for optimal query performance
 
-# Enable Point-in-Time Recovery
-aws dynamodb update-continuous-backups \
-  --table-name PhotoSnapUsers \
-  --point-in-time-recovery-specification PointInTimeRecoveryEnabled=true
+**Storage Layer:**
+- Frontend S3 bucket configured for static website hosting with landing.html as index
+- Photos S3 bucket with versioning enabled for object recovery capabilities
+- CORS policies configured on photos bucket to allow cross-origin requests from custom domain
 
-# Create short links table
-aws dynamodb create-table \
-  --table-name PhotoSnapShortLinks \
-  --attribute-definitions AttributeName=shortId,AttributeType=S \
-  --key-schema AttributeName=shortId,KeyType=HASH \
-  --billing-mode PAY_PER_REQUEST
+**Compute Layer:**
+- Lambda function deployed with Node.js 20.x runtime and 512MB memory allocation
+- Execution role configured with least-privilege permissions for DynamoDB, IAM, STS, and S3
+- 30-second timeout configured to handle pre-signed URL generation and authentication flows
 
-# Enable TTL for automatic expiration
-aws dynamodb update-time-to-live \
-  --table-name PhotoSnapShortLinks \
-  --time-to-live-specification "Enabled=true, AttributeName=ttl"
-```
+**Monitoring Layer:**
+- CloudWatch Logs configured with 7-day retention for Lambda and API Gateway
+- CloudWatch Alarm created to monitor Lambda errors with 5-error threshold over 5-minute period
+- SNS topic configured for email notifications on alarm triggers
 
-### 2. S3 Buckets
-```bash
-# Frontend bucket
-aws s3 mb s3://photosnap-frontend-<account-id>
-aws s3 website s3://photosnap-frontend-<account-id> \
-  --index-document landing.html
+**API Layer:**
+- HTTP API created in API Gateway for lightweight, cost-effective API management
+- CORS configuration set to allow POST and OPTIONS methods from custom domain
+- Lambda proxy integration configured for all /auth endpoint requests
 
-# Photos bucket
-aws s3 mb s3://photosnap-photos-<account-id>
-```
+**CDN and DNS Layer:**
+- ACM certificate requested in us-east-1 region for CloudFront compatibility
+- CloudFront distribution configured with S3 website endpoint as origin
+- CloudFront behavior added for /s/* path routing to redirect Lambda for URL shortener
+- Route 53 hosted zone created with A record alias pointing to CloudFront distribution
+- Cache invalidation strategy implemented for zero-downtime deployments
 
-### 3. Lambda Deployment
-1. Create Lambda execution role with permissions:
-   - DynamoDB: GetItem, PutItem, UpdateItem (both tables)
-   - IAM: CreateRole, PutRolePolicy
-   - STS: AssumeRole
-   - S3: PutObject, GetObject, ListBucket, DeleteObject
-   - CloudWatch Logs: CreateLogGroup, CreateLogStream, PutLogEvents
-
-2. Deploy Lambda function:
-```bash
-cd backend/lambda
-zip function.zip index.mjs
-aws lambda create-function \
-  --function-name PhotoSnapAuthFunction \
-  --runtime nodejs20.x \
-  --role arn:aws:iam::<account-id>:role/PhotoSnapLambdaExecutionRole \
-  --handler index.handler \
-  --zip-file fileb://function.zip
-```
-
-### 4. CloudWatch Alarms
-```bash
-# Create SNS topic for alarm notifications
-aws sns create-topic --name PhotoSnapAlerts
-
-# Subscribe email to SNS topic
-aws sns subscribe \
-  --topic-arn arn:aws:sns:us-east-2:<account-id>:PhotoSnapAlerts \
-  --protocol email \
-  --notification-endpoint your-email@example.com
-
-# Create CloudWatch alarm for Lambda errors
-aws cloudwatch put-metric-alarm \
-  --alarm-name PhotoSnapLambdaErrors \
-  --alarm-description "Alert when Lambda errors exceed threshold" \
-  --metric-name Errors \
-  --namespace AWS/Lambda \
-  --statistic Sum \
-  --period 300 \
-  --threshold 5 \
-  --comparison-operator GreaterThanThreshold \
-  --evaluation-periods 1 \
-  --dimensions Name=FunctionName,Value=PhotoSnapAuthFunction \
-  --alarm-actions arn:aws:sns:us-east-2:<account-id>:PhotoSnapAlerts
-```
-
-### 5. API Gateway
-```bash
-# Create HTTP API
-aws apigatewayv2 create-api \
-  --name PhotoSnapAPI \
-  --protocol-type HTTP \
-  --cors-configuration AllowOrigins="https://photosnap.pro",AllowMethods="POST,OPTIONS",AllowHeaders="Content-Type"
-
-# Create route and integration
-aws apigatewayv2 create-integration \
-  --api-id <api-id> \
-  --integration-type AWS_PROXY \
-  --integration-uri arn:aws:lambda:<region>:<account-id>:function:PhotoSnapAuthFunction
-
-aws apigatewayv2 create-route \
-  --api-id <api-id> \
-  --route-key "POST /auth" \
-  --target integrations/<integration-id>
-```
-
-### 6. CloudFront and Custom Domain (Optional)
-1. Request SSL certificate in ACM (us-east-1 region)
-2. Create CloudFront distribution with S3 website endpoint as origin
-3. Configure Route 53 hosted zone for custom domain
-4. Create A record (alias) pointing to CloudFront distribution
-5. Add CloudFront behavior for `/s/*` path to route to redirect Lambda (for URL shortener)
-
-### 7. Frontend Deployment
-```bash
-# Upload frontend files to S3
-aws s3 cp frontend/ s3://photosnap-frontend-<account-id>/ --recursive
-
-# Invalidate CloudFront cache
-aws cloudfront create-invalidation \
-  --distribution-id <dist-id> \
-  --paths "/*"
-```
+**Security Configuration:**
+- Per-user IAM roles generated dynamically on signup with folder-level S3 access
+- STS temporary credentials issued with 1-hour expiration for client-side operations
+- All HTTP traffic automatically redirected to HTTPS via CloudFront viewer protocol policy
 
 ## Security Considerations
 
@@ -536,4 +450,4 @@ Built as a portfolio project demonstrating serverless architecture, AWS security
 
 ---
 
-**Created:** November 2025  
+**Created:** November 2025
