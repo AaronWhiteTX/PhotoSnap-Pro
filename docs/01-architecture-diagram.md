@@ -11,11 +11,11 @@ graph TB
     end
     
     subgraph DNS["DNS Layer - Global Failover<br/>100% Uptime SLA"]
-        Route53[Route 53<br/>Multi-Region DNS<br/>Anycast Routing<br/>Failover Policies]
+        Route53[Route 53<br/>Multi-Region DNS<br/>Anycast Routing]
     end
     
     subgraph CDN["CDN Layer - 450+ Edge Locations<br/>Automatic Failover"]
-        CloudFront[CloudFront Distribution<br/>99.9% Availability SLA<br/>DDoS Protection<br/>Origin Health Checks]
+        CloudFront[CloudFront Distribution<br/>99.9% Availability SLA<br/>DDoS Protection]
         ACM[ACM Certificate<br/>Auto-Renewal<br/>TLS 1.2+]
     end
     
@@ -24,73 +24,75 @@ graph TB
     end
     
     subgraph API["API Layer - Multi-AZ<br/>99.95% Availability SLA"]
-        APIGW[API Gateway HTTP API<br/>Auto-Scaling<br/>Rate Limiting: 10k req/sec<br/>Runs Across 3 AZs]
+        APIGW[API Gateway HTTP API<br/>Auto-Scaling<br/>Rate Limiting: 10k req/sec]
     end
     
     subgraph Compute["Compute Layer - Multi-AZ<br/>Auto-Retry on Failure"]
-        Lambda[Lambda Function<br/>Runs Across 3+ AZs<br/>Automatic Failover<br/>512MB Memory<br/>30sec Timeout]
+        Lambda[Lambda Functions<br/>Runs Across 3+ AZs<br/>Automatic Failover<br/>512MB Memory]
     end
     
     subgraph IAM_Boundary["IAM Security Boundary - Least Privilege"]
-        subgraph IAM_Roles["IAM Roles & Policies"]
-            LambdaRole[Lambda Execution Role<br/>Permissions:<br/>- DynamoDB: Get/Put/Update<br/>- IAM: CreateRole<br/>- STS: AssumeRole<br/>- S3: Get/Put/Delete]
-            UserRole[Per-User S3 Roles<br/>Permissions:<br/>- S3 Folder Access Only<br/>- No Cross-User Access<br/>- Time-Limited: 1 Hour]
+        subgraph IAM_Roles["IAM Roles"]
+            LambdaRole[Lambda Execution Role<br/>DynamoDB + IAM + STS + S3]
+            UserRole[Per-User S3 Roles<br/>Folder-Level Access Only]
         end
-        STS[Security Token Service<br/>Temporary Credentials<br/>1-Hour Expiration]
+        STS[Security Token Service<br/>1-Hour Temp Credentials]
     end
     
-    subgraph Storage["Storage Layer - Multi-AZ Replication<br/>High Durability"]
-        DynamoDB[(DynamoDB<br/>3 AZ Synchronous Replication<br/>PITR: 35-Day Backup<br/>99.99% Availability<br/>RPO: < 1 Second)]
-        S3Photos[(S3 Photos Bucket<br/>Cross-AZ Replication<br/>11 9's Durability<br/>Versioning Enabled<br/>RTO: Instant Recovery)]
+    subgraph Storage["Storage Layer - Multi-AZ Replication"]
+        DynamoDB[(DynamoDB<br/>3 AZ Synchronous Replication<br/>PITR: 35-Day Backup<br/>99.99% Availability)]
+        S3Photos[(S3 Photos Bucket<br/>Cross-AZ Replication<br/>11 9's Durability<br/>Versioning Enabled)]
     end
     
-    subgraph Monitoring["Monitoring & Alerting<br/>Real-Time Detection"]
-        CloudWatch[CloudWatch Logs<br/>7-Day Retention<br/>JSON Structured Logs]
-        Alarms[CloudWatch Alarms<br/>Threshold: Errors > 5 per 5min<br/>SNS Email Alerts<br/>Incident Response]
+    subgraph Monitoring["Monitoring & Alerting"]
+        CloudWatch[CloudWatch Logs<br/>7-Day Retention]
+        Alarms[CloudWatch Alarms<br/>PhotoSnapLambdaErrors<br/>PhotoSnapRedirectErrors]
+        SNS[SNS Topic<br/>PhotoSnapAlerts<br/>Email Notifications]
     end
     
     User -->|DNS Lookup| Route53
-    Route53 -->|Route to Nearest Edge<br/>Failover on Failure| CloudFront
-    CloudFront <-->|SSL/TLS Termination<br/>Certificate Validation| ACM
-    CloudFront -->|Fetch Origin<br/>Health Check: 30s| S3Frontend
-    S3Frontend -->|Cached Response<br/>TTL: 24 Hours| CloudFront
-    CloudFront -->|HTTPS Response<br/>Compressed| User
+    Route53 -->|Route to Nearest Edge| CloudFront
+    CloudFront <-->|SSL/TLS Termination| ACM
+    CloudFront -->|Fetch Origin| S3Frontend
+    S3Frontend -->|Cached Response| CloudFront
+    CloudFront -->|HTTPS Response| User
     
-    User -->|HTTPS API Requests<br/>CORS Validated| APIGW
-    APIGW -->|Invoke Function<br/>Async Execution| Lambda
-    Lambda -->|Response Payload<br/>Max: 6MB| APIGW
-    APIGW -->|JSON Response<br/>CORS Headers| User
+    User -->|HTTPS API Requests| APIGW
+    APIGW -->|Invoke Function| Lambda
+    Lambda -->|Response| APIGW
+    APIGW -->|JSON Response| User
     
-    Lambda -->|Read/Write Operations<br/>Strongly Consistent| DynamoDB
-    Lambda -->|Create IAM Roles<br/>On User Signup| UserRole
-    Lambda -->|AssumeRole Request<br/>With User Context| STS
-    STS -->|Temporary Credentials<br/>AccessKey + SecretKey + Token| Lambda
-    Lambda -->|Generate Pre-signed URLs<br/>Time-Limited| S3Photos
+    Lambda -->|Read/Write| DynamoDB
+    Lambda -->|Create IAM Roles| UserRole
+    Lambda -->|AssumeRole Request| STS
+    STS -->|Temporary Credentials| Lambda
+    Lambda -->|Generate Pre-signed URLs| S3Photos
     
-    User -->|Direct Upload/Download<br/>Pre-signed URLs| S3Photos
-    S3Photos -->|Verify IAM Permissions<br/>Signature Validation| UserRole
+    User -->|Direct Upload/Download| S3Photos
+    S3Photos -->|Verify IAM Permissions| UserRole
     
-    LambdaRole -.->|Grants Permissions<br/>Least Privilege| Lambda
+    LambdaRole -.->|Grants Permissions| Lambda
     
-    Lambda -.->|Execution Logs<br/>Start/End/Errors| CloudWatch
-    APIGW -.->|Access Logs<br/>Request/Response| CloudWatch
-    CloudWatch -->|Error Threshold Breach<br/>5 Errors in 5min| Alarms
-    Alarms -.->|Email Notification<br/>Incident Alert| User
+    Lambda -.->|Execution Logs| CloudWatch
+    APIGW -.->|Access Logs| CloudWatch
+    CloudWatch -->|Error Threshold Breach| Alarms
+    Alarms -->|Trigger Notification| SNS
+    SNS -.->|Email Alert| User
     
-    style Route53 fill:#8c4fff,stroke:#333,stroke-width:3px
-    style CloudFront fill:#ff9900,stroke:#333,stroke-width:3px
-    style ACM fill:#dd344c,stroke:#333,stroke-width:3px
-    style S3Frontend fill:#569a31,stroke:#333,stroke-width:3px
-    style APIGW fill:#ff4f8b,stroke:#333,stroke-width:3px
-    style Lambda fill:#ff9900,stroke:#333,stroke-width:3px
-    style DynamoDB fill:#527fff,stroke:#333,stroke-width:3px
-    style S3Photos fill:#569a31,stroke:#333,stroke-width:3px
-    style LambdaRole fill:#dd344c,stroke:#333,stroke-width:3px
-    style UserRole fill:#dd344c,stroke:#333,stroke-width:3px
-    style STS fill:#dd344c,stroke:#333,stroke-width:3px
-    style CloudWatch fill:#ff4f8b,stroke:#333,stroke-width:3px
-    style Alarms fill:#ff4f8b,stroke:#333,stroke-width:3px
-    style IAM_Boundary fill:#ffe6e6,stroke:#dd344c,stroke-width:4px,stroke-dasharray: 5 5
+    style Route53 fill:#8c4fff,stroke:#333,stroke-width:2px
+    style CloudFront fill:#ff9900,stroke:#333,stroke-width:2px
+    style ACM fill:#dd344c,stroke:#333,stroke-width:2px
+    style S3Frontend fill:#569a31,stroke:#333,stroke-width:2px
+    style APIGW fill:#ff4f8b,stroke:#333,stroke-width:2px
+    style Lambda fill:#ff9900,stroke:#333,stroke-width:2px
+    style DynamoDB fill:#527fff,stroke:#333,stroke-width:2px
+    style S3Photos fill:#569a31,stroke:#333,stroke-width:2px
+    style LambdaRole fill:#dd344c,stroke:#333,stroke-width:2px
+    style UserRole fill:#dd344c,stroke:#333,stroke-width:2px
+    style STS fill:#dd344c,stroke:#333,stroke-width:2px
+    style CloudWatch fill:#ff4f8b,stroke:#333,stroke-width:2px
+    style Alarms fill:#ff4f8b,stroke:#333,stroke-width:2px
+    style SNS fill:#ff4f8b,stroke:#333,stroke-width:2px
 ```
 
 ---
