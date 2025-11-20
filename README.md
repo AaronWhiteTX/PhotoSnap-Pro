@@ -29,7 +29,7 @@ graph TB
     end
     
     subgraph Compute["Compute Layer - Multi-AZ<br/>Auto-Retry on Failure"]
-        Lambda[Lambda Function<br/>Runs Across 3+ AZs<br/>Automatic Failover<br/>512MB Memory]
+        Lambda[Lambda Functions<br/>Runs Across 3+ AZs<br/>Automatic Failover<br/>512MB Memory]
     end
     
     subgraph IAM_Boundary["IAM Security Boundary - Least Privilege"]
@@ -47,7 +47,8 @@ graph TB
     
     subgraph Monitoring["Monitoring & Alerting"]
         CloudWatch[CloudWatch Logs<br/>7-Day Retention]
-        Alarms[CloudWatch Alarms<br/>Errors > 5 per 5min<br/>SNS Email Alerts]
+        Alarms[CloudWatch Alarms<br/>PhotoSnapLambdaErrors<br/>PhotoSnapRedirectErrors]
+        SNS[SNS Topic<br/>PhotoSnapAlerts<br/>Email Notifications]
     end
     
     User -->|DNS Lookup| Route53
@@ -76,7 +77,8 @@ graph TB
     Lambda -.->|Execution Logs| CloudWatch
     APIGW -.->|Access Logs| CloudWatch
     CloudWatch -->|Error Threshold Breach| Alarms
-    Alarms -.->|Email Notification| User
+    Alarms -->|Trigger Notification| SNS
+    SNS -.->|Email Alert| User
     
     style Route53 fill:#8c4fff,stroke:#333,stroke-width:2px
     style CloudFront fill:#ff9900,stroke:#333,stroke-width:2px
@@ -91,6 +93,7 @@ graph TB
     style STS fill:#dd344c,stroke:#333,stroke-width:2px
     style CloudWatch fill:#ff4f8b,stroke:#333,stroke-width:2px
     style Alarms fill:#ff4f8b,stroke:#333,stroke-width:2px
+    style SNS fill:#ff4f8b,stroke:#333,stroke-width:2px
 ```
 
 *Figure 1: Serverless architecture with fault-tolerance across all layers. Every service runs across multiple Availability Zones with automatic failover. DNS provides global routing with failover policies, IAM boundaries enforce least-privilege access, and monitoring ensures rapid incident detection.*
@@ -146,29 +149,56 @@ graph TB
 | **S3 Photos Bucket** | Storage | Stores user photos with per-user folder isolation |
 | **CloudWatch** | Monitoring | Logs and monitors Lambda executions and API Gateway requests with error alarms |
 
+
 ## Monitoring and Alerts
 
 ### CloudWatch Alarms Configuration
-**Lambda Error Alarm:**
-- **Metric:** Lambda Errors
-- **Threshold Type:** Static
-- **Condition:** Greater than 5 errors
-- **Period:** 5 minutes
-- **Action:** SNS notification (can be configured for email/SMS alerts)
+**Lambda Error Alarms:**
+- **PhotoSnapLambdaErrors:** Monitors PhotoSnapAuthFunction for errors
+- **PhotoSnapRedirectErrors:** Monitors PhotoSnapRedirect for errors
+- **Threshold:** Greater than 5 errors in 5-minute period
+- **Comparison:** GreaterThanThreshold
+- **Evaluation Period:** 1 period (5 minutes)
+- **Action:** SNS notification via PhotoSnapAlerts topic
+- **Status:** Active and monitoring
+- **Missing Data Treatment:** Treated as not breaching (no errors = OK)
 
-**Purpose:** Provides immediate notification when the application experiences elevated error rates, enabling rapid response to service degradation or attacks.
+**SNS Configuration:**
+- **Topic:** PhotoSnapAlerts
+- **Protocol:** Email notification
+- **Endpoint:** Configured for immediate incident response
+- **Purpose:** Provides real-time alerts when application experiences elevated error rates, enabling rapid response to service degradation or attacks
+
+**CloudWatch Metrics Tracked:**
+- **Lambda Invocations:** Total request count per function
+- **Lambda Duration:** Execution time in milliseconds
+- **Lambda Errors:** Failure count (exceptions, timeouts, crashes)
+- **Lambda Throttles:** Rate limiting occurrences
+- **Lambda Concurrent Executions:** Number of parallel executions
+- **API Gateway 4XX Errors:** Client errors (bad requests)
+- **API Gateway 5XX Errors:** Server errors (backend failures)
+- **DynamoDB Consumed Capacity:** Read/write throughput usage
+
+**CloudWatch Logs:**
+- **Retention:** 7 days for Lambda and API Gateway logs
+- **Log Groups:** 
+  - `/aws/lambda/PhotoSnapAuthFunction` - Authentication, photo operations, URL shortening
+  - `/aws/lambda/PhotoSnapRedirect` - Short link resolution and redirects
+- **Purpose:** Debugging, audit trails, and incident investigation
+- **Log Level:** INFO for normal operations, ERROR for exceptions
 
 ### Point-in-Time Recovery (PITR)
 **DynamoDB PITR Configuration:**
-- **Status:** Enabled
-- **Retention Period:** 35 days
-- **Recovery Window:** Continuous backup allowing restore to any point in the last 35 days
+- **Status:** Enabled on PhotoSnapUsers table
+- **Retention Period:** 35 days continuous backup
+- **Recovery Window:** Restore to any second within the last 35 days
+- **Backup Frequency:** Continuous (automatic)
 - **Use Cases:** 
   - Recover from accidental deletions
   - Restore after data corruption
   - Compliance requirements for data retention
   - Testing with production-like data
-
+  - Rollback after application bugs
 ## Key Architectural Decisions
 
 ### 1. Pre-signed URL Architecture
