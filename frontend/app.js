@@ -283,7 +283,7 @@ function displayPreview() {
             previewItem.className = 'preview-item';
             previewItem.innerHTML = `
                 <img src="${e.target.result}" alt="${file.name}" />
-                <button class="remove-preview" onclick="removePreview(${index})">âœ•</button>
+                <button class="remove-preview" onclick="removePreview(${index})">✕</button>
             `;
             previewContainer.appendChild(previewItem);
         };
@@ -523,33 +523,41 @@ async function sharePhoto() {
         const shortData = await shortResponse.json();
         const shareUrl = shortData.shortUrl;
         
-        if (navigator.share) {
+        // Better mobile detection: check if device is actually mobile
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        // Only use native share on actual mobile devices
+        if (isMobile && navigator.share) {
             try {
                 await navigator.share({
                     title: 'Photo from PhotoSnap',
                     text: 'Check out this photo!',
                     url: shareUrl
                 });
-                shareMessage.textContent = `âœ“ Shared! Valid for ${data.expiresIn}`;
+                shareMessage.textContent = `✓ Shared! Valid for ${data.expiresIn}`;
                 shareMessage.classList.add('show');
                 setTimeout(() => shareMessage.classList.remove('show'), 3000);
                 return;
             } catch (shareError) {
+                // User cancelled share or error occurred, fall through to clipboard
                 if (shareError.name === 'AbortError') {
-                    return;
+                    return; // User cancelled, don't show error
                 }
+                // Other errors, fall through to clipboard method
             }
         }
         
+        // Desktop: Use clipboard API
         try {
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 await navigator.clipboard.writeText(shareUrl);
-                shareMessage.textContent = `âœ“ Link copied! Valid for ${data.expiresIn}`;
+                shareMessage.textContent = `✓ Link copied! Valid for ${data.expiresIn}`;
                 shareMessage.classList.add('show');
                 setTimeout(() => shareMessage.classList.remove('show'), 4000);
                 return;
             }
             
+            // Fallback: execCommand for older browsers
             const textArea = document.createElement('textarea');
             textArea.value = shareUrl;
             textArea.style.position = 'fixed';
@@ -563,7 +571,7 @@ async function sharePhoto() {
             document.body.removeChild(textArea);
             
             if (successful) {
-                shareMessage.textContent = `âœ“ Link copied! Valid for ${data.expiresIn}`;
+                shareMessage.textContent = `✓ Link copied! Valid for ${data.expiresIn}`;
                 shareMessage.classList.add('show');
                 setTimeout(() => shareMessage.classList.remove('show'), 4000);
                 return;
@@ -572,6 +580,7 @@ async function sharePhoto() {
             console.error('Clipboard error:', clipboardError);
         }
         
+        // Final fallback: Show input field for manual copy
         shareMessage.innerHTML = `<div style="word-break: break-all; font-size: 11px; max-height: 80px; overflow-y: auto; line-height: 1.3;">Tap to select, then copy:<br><input type="text" value="${shareUrl}" readonly style="width:100%; font-size:10px; padding:5px;" onclick="this.select()"></div>`;
         shareMessage.classList.add('show');
         setTimeout(() => shareMessage.classList.remove('show'), 15000);
