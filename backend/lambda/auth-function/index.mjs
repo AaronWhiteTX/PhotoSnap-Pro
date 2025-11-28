@@ -2,7 +2,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { IAMClient, CreateRoleCommand, PutRolePolicyCommand } from "@aws-sdk/client-iam";
 import { STSClient, AssumeRoleCommand } from "@aws-sdk/client-sts";
-import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, PutObjectCommand, CopyObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createHash } from "crypto";
 
@@ -144,7 +144,22 @@ async function handleSignup(username, password) {
         }
     }));
     
-    return successResponse({ message: `User ${username} created successfully. IAM Role ${roleName} created.` });
+    // Copy sample tortilla photo to new user's folder
+    try {
+        await s3.send(new CopyObjectCommand({
+            Bucket: BUCKET_NAME,
+            CopySource: `${BUCKET_NAME}/templates/sample-tortilla.jpg`,
+            Key: `${username}/sample-tortilla.jpg`,
+            ServerSideEncryption: 'AES256'
+        }));
+        
+        console.log(`✅ Copied sample tortilla photo for user: ${username}`);
+    } catch (copyError) {
+        console.error('⚠️ Failed to copy sample photo (non-critical):', copyError);
+        // Don't fail signup if sample photo copy fails
+    }
+    
+    return successResponse({ message: `User ${username} created successfully! Check out your sample photo. 🌮` });
 }
 
 async function handleLogin(username, password) {
