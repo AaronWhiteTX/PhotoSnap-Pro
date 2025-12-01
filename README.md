@@ -1,483 +1,261 @@
-# PhotoSnapPro: Serverless Photo Gallery with Secure Sharing
+# PhotoSnap Pro - Serverless Photo Gallery with Viral Sharing
 
-A modern, serverless web application that allows users to sign up, authenticate, and securely manage and share their photos with time-limited public links. Built entirely on AWS with custom domain, global CDN, and security-first architecture using pre-signed URLs and least-privilege access controls.
+Production serverless photo gallery with secure authentication, direct S3 uploads via pre-signed URLs, and viral sharing through branded viewer pages with URL shortening for mobile compatibility.
 
-**Live Demo:** [https://photosnap.pro](https://photosnap.pro)
-
-## Architecture Diagram
-```mermaid
-graph TB
-    subgraph Client["Client Layer"]
-        User[User Browser/Mobile]
-    end
-    
-    subgraph DNS["DNS Layer - Global Failover<br/>100% Uptime SLA"]
-        Route53[Route 53<br/>Multi-Region DNS<br/>Anycast Routing]
-    end
-    
-    subgraph CDN["CDN Layer - 450+ Edge Locations<br/>Automatic Failover"]
-        CloudFront[CloudFront Distribution<br/>99.9% Availability SLA<br/>DDoS Protection]
-        ACM[ACM Certificate<br/>Auto-Renewal<br/>TLS 1.2+]
-    end
-    
-    subgraph Frontend["Frontend Layer - Multi-AZ<br/>99.99% Availability"]
-        S3Frontend[S3 Static Hosting<br/>Cross-AZ Replication<br/>Versioning Enabled]
-    end
-    
-    subgraph API["API Layer - Multi-AZ<br/>99.95% Availability SLA"]
-        APIGW[API Gateway HTTP API<br/>Auto-Scaling<br/>Rate Limiting: 10k req/sec]
-    end
-    
-    subgraph Compute["Compute Layer - Multi-AZ<br/>Auto-Retry on Failure"]
-        Lambda[Lambda Functions<br/>Runs Across 3+ AZs<br/>Automatic Failover<br/>512MB Memory]
-    end
-    
-    subgraph IAM_Boundary["IAM Security Boundary - Least Privilege"]
-        subgraph IAM_Roles["IAM Roles"]
-            LambdaRole[Lambda Execution Role<br/>DynamoDB + IAM + STS + S3]
-            UserRole[Per-User S3 Roles<br/>Folder-Level Access Only]
-        end
-        STS[Security Token Service<br/>1-Hour Temp Credentials]
-    end
-    
-    subgraph Storage["Storage Layer - Multi-AZ Replication"]
-        DynamoDB[(DynamoDB<br/>3 AZ Synchronous Replication<br/>PITR: 35-Day Backup<br/>99.99% Availability)]
-        S3Photos[(S3 Photos Bucket<br/>Cross-AZ Replication<br/>11 9's Durability<br/>Versioning Enabled)]
-    end
-    
-    subgraph Monitoring["Monitoring & Alerting"]
-        CloudWatch[CloudWatch Logs<br/>7-Day Retention]
-        Alarms[CloudWatch Alarms<br/>PhotoSnapLambdaErrors<br/>PhotoSnapRedirectErrors]
-        SNS[SNS Topic<br/>PhotoSnapAlerts<br/>Email Notifications]
-    end
-    
-    User -->|DNS Lookup| Route53
-    Route53 -->|Route to Nearest Edge| CloudFront
-    CloudFront <-->|SSL/TLS Termination| ACM
-    CloudFront -->|Fetch Origin| S3Frontend
-    S3Frontend -->|Cached Response| CloudFront
-    CloudFront -->|HTTPS Response| User
-    
-    User -->|HTTPS API Requests| APIGW
-    APIGW -->|Invoke Function| Lambda
-    Lambda -->|Response| APIGW
-    APIGW -->|JSON Response| User
-    
-    Lambda -->|Read/Write| DynamoDB
-    Lambda -->|Create IAM Roles| UserRole
-    Lambda -->|AssumeRole Request| STS
-    STS -->|Temporary Credentials| Lambda
-    Lambda -->|Generate Pre-signed URLs| S3Photos
-    
-    User -->|Direct Upload/Download| S3Photos
-    S3Photos -->|Verify IAM Permissions| UserRole
-    
-    LambdaRole -.->|Grants Permissions| Lambda
-    
-    Lambda -.->|Execution Logs| CloudWatch
-    APIGW -.->|Access Logs| CloudWatch
-    CloudWatch -->|Error Threshold Breach| Alarms
-    Alarms -->|Trigger Notification| SNS
-    SNS -.->|Email Alert| User
-    
-    style Route53 fill:#8c4fff,stroke:#333,stroke-width:2px
-    style CloudFront fill:#ff9900,stroke:#333,stroke-width:2px
-    style ACM fill:#dd344c,stroke:#333,stroke-width:2px
-    style S3Frontend fill:#569a31,stroke:#333,stroke-width:2px
-    style APIGW fill:#ff4f8b,stroke:#333,stroke-width:2px
-    style Lambda fill:#ff9900,stroke:#333,stroke-width:2px
-    style DynamoDB fill:#527fff,stroke:#333,stroke-width:2px
-    style S3Photos fill:#569a31,stroke:#333,stroke-width:2px
-    style LambdaRole fill:#dd344c,stroke:#333,stroke-width:2px
-    style UserRole fill:#dd344c,stroke:#333,stroke-width:2px
-    style STS fill:#dd344c,stroke:#333,stroke-width:2px
-    style CloudWatch fill:#ff4f8b,stroke:#333,stroke-width:2px
-    style Alarms fill:#ff4f8b,stroke:#333,stroke-width:2px
-    style SNS fill:#ff4f8b,stroke:#333,stroke-width:2px
-```
-
-*Figure 1: Serverless architecture with fault-tolerance across all layers. Every service runs across multiple Availability Zones with automatic failover. DNS provides global routing with failover policies, IAM boundaries enforce least-privilege access, and monitoring ensures rapid incident detection.*
-
-## Features
-
-### Core Functionality
-- **User Authentication:** Secure signup/login with SHA256 password hashing
-- **Password Reset:** Token-based password recovery system (15-minute expiry)
-- **Photo Upload:** Drag-and-drop or click-to-upload with preview
-- **Photo Gallery:** Grid view with hover effects and modal viewer
-- **Branded Photo Sharing:** Generate shareable links with marketing viewer (7-day expiry)
-- **URL Shortener:** Mobile-friendly short links (35 chars vs 2000+) prevent message splitting
-- **Native Mobile Sharing:** iOS/Android share sheet with automatic clipboard fallbacks
-- **Photo Deletion:** Secure deletion with confirmation modal
-
-### Security Features
-- **Pre-signed URLs:** All S3 operations use temporary, signed URLs - zero credentials in browser
-- **Base64 URL Encoding:** Preserves AWS security tokens in share links
-- **Least-Privilege IAM:** Per-user IAM roles with folder-level S3 access only
-- **STS Temporary Credentials:** 1-hour session tokens for authenticated operations
-- **SHA256 Password Hashing:** Passwords never stored in plaintext
-- **HTTPS/SSL:** CloudFront with ACM certificate for encrypted traffic
-
-### Resilience Features
-- **Point-in-Time Recovery (PITR):** DynamoDB backup enabled with 35-day retention for data recovery
-- **CloudWatch Alarms:** Automated alerts when Lambda errors exceed 5 per 5-minute period
-- **Multi-AZ DynamoDB:** Automatic replication across availability zones
-- **S3 Durability:** 99.999999999% (11 9's) durability with cross-AZ replication
-- **CloudFront HA:** Automatic failover across global edge locations
-
-### Infrastructure
-- **Custom Domain:** photosnap.pro with Route 53 DNS management
-- **Global CDN:** CloudFront distribution for low-latency worldwide access
-- **Mobile Responsive:** Desktop and mobile optimized UI
-- **Serverless:** Auto-scaling with zero server management
-- **Cost-Optimized:** $0.50/month (Route 53 only, everything else free tier)
-
-## Solution Architecture
-
-| **AWS Component** | **Service Layer** | **Primary Function / Role** | 
-| :--- | :--- | :--- | 
-| **Route 53** | DNS | Custom domain DNS management and routing to CloudFront |
-| **CloudFront** | CDN | Global content delivery with SSL/TLS termination and caching |
-| **ACM** | Security | SSL/TLS certificate for HTTPS on custom domain |
-| **S3 Static Hosting** | Frontend | Hosts static HTML, CSS, and JavaScript files |
-| **API Gateway (HTTP API)** | API Layer | Exposes `/auth` endpoint for all backend operations with CORS handling |
-| **Lambda** | Backend Logic | Handles authentication, pre-signed URL generation, and photo operations |
-| **DynamoDB (Users)** | Data Storage | Stores user credentials (hashed), IAM role ARNs, and reset tokens with PITR enabled (35-day retention) |
-| **DynamoDB (ShortLinks)** | Data Storage | Stores URL mappings (shortId → longUrl) with 7-day TTL auto-expiration |
-| **IAM** | Security | Creates per-user least-privilege roles with folder-level S3 access |
-| **STS** | Security | Issues temporary credentials for authenticated S3 operations |
-| **S3 Photos Bucket** | Storage | Stores user photos with per-user folder isolation |
-| **CloudWatch** | Monitoring | Logs and monitors Lambda executions and API Gateway requests with error alarms |
-
-
-## Monitoring and Alerts
-
-### CloudWatch Alarms Configuration
-**Lambda Error Alarms:**
-- **PhotoSnapLambdaErrors:** Monitors PhotoSnapAuthFunction for errors
-- **PhotoSnapRedirectErrors:** Monitors PhotoSnapRedirect for errors
-- **Threshold:** Greater than 5 errors in 5-minute period
-- **Comparison:** GreaterThanThreshold
-- **Evaluation Period:** 1 period (5 minutes)
-- **Action:** SNS notification via PhotoSnapAlerts topic
-- **Status:** Active and monitoring
-- **Missing Data Treatment:** Treated as not breaching (no errors = OK)
-
-**SNS Configuration:**
-- **Topic:** PhotoSnapAlerts
-- **Protocol:** Email notification
-- **Endpoint:** Configured for immediate incident response
-- **Purpose:** Provides real-time alerts when application experiences elevated error rates, enabling rapid response to service degradation or attacks
-
-**CloudWatch Metrics Tracked:**
-- **Lambda Invocations:** Total request count per function
-- **Lambda Duration:** Execution time in milliseconds
-- **Lambda Errors:** Failure count (exceptions, timeouts, crashes)
-- **Lambda Throttles:** Rate limiting occurrences
-- **Lambda Concurrent Executions:** Number of parallel executions
-- **API Gateway 4XX Errors:** Client errors (bad requests)
-- **API Gateway 5XX Errors:** Server errors (backend failures)
-- **DynamoDB Consumed Capacity:** Read/write throughput usage
-
-**CloudWatch Logs:**
-- **Retention:** 7 days for Lambda and API Gateway logs
-- **Log Groups:** 
-  - `/aws/lambda/PhotoSnapAuthFunction` - Authentication, photo operations, URL shortening
-  - `/aws/lambda/PhotoSnapRedirect` - Short link resolution and redirects
-- **Purpose:** Debugging, audit trails, and incident investigation
-- **Log Level:** INFO for normal operations, ERROR for exceptions
-
-### Point-in-Time Recovery (PITR)
-**DynamoDB PITR Configuration:**
-- **Status:** Enabled on PhotoSnapUsers table
-- **Retention Period:** 35 days continuous backup
-- **Recovery Window:** Restore to any second within the last 35 days
-- **Backup Frequency:** Continuous (automatic)
-- **Use Cases:** 
-  - Recover from accidental deletions
-  - Restore after data corruption
-  - Compliance requirements for data retention
-  - Testing with production-like data
-  - Rollback after application bugs
-## Key Architectural Decisions
-
-### 1. Pre-signed URL Architecture
-**Problem:** Initially attempted direct S3 uploads with AWS credentials exposed in browser, causing security vulnerabilities and CORS issues.
-
-**Solution:** Implemented pre-signed URL pattern where:
-- Client requests pre-signed URL from Lambda
-- Lambda generates time-limited, cryptographically signed S3 URL (5 min for uploads, 1 hour for views, 7 days for shares)
-- Client uploads/downloads directly to/from S3 using signed URL
-- URL expires automatically, revoking access
-
-**Benefits:**
-- Zero AWS credentials in browser/network traffic
-- Lambda maintains centralized access control
-- Time-limited access prevents unauthorized long-term usage
-- Follows AWS security best practices
-
-### 2. Branded Photo Sharing with Marketing Funnel
-**Feature:** Users can share photos via public links that display in a branded viewer page with conversion-optimized CTA.
-
-**Implementation:**
-- Share button generates viewer URL: `photosnap.pro/viewer.html?u=<base64-encoded-url>`
-- Viewer page displays photo with PhotoSnap branding and "Start Free Today" CTA
-- Converts photo sharing into marketing opportunity (viral growth loop)
-
-**Technical Details:**
-- Lambda `get-share-url` action generates 7-day pre-signed S3 URLs
-- Frontend uses Base64 encoding (`btoa()`) to encode S3 URL in query parameter
-- Viewer uses Base64 decoding (`atob()`) to extract and display photo
-- Base64 encoding prevents AWS security token corruption (preserves `+` signs and special characters)
-
-**Challenge Solved:**
-Initial implementation used URL encoding (`encodeURIComponent()`) which converted plus signs in AWS security tokens to spaces, causing `InvalidToken` errors. Base64 encoding preserves all characters perfectly.
-
-### 3. URL Shortener for Mobile Compatibility
-**Problem:** Share links were 2000+ characters, causing messaging apps (SMS, WhatsApp, iMessage) to split URLs across multiple messages, breaking the link on mobile devices.
-
-**Solution:** Implemented URL shortening service:
-- User shares photo → generates 6-character random ID (e.g., `aBc123`)
-- Stores mapping in DynamoDB: `shortId → viewer URL`
-- Returns short link: `https://photosnap.pro/s/aBc123`
-- CloudFront routes `/s/*` requests to redirect Lambda
-- Lambda looks up shortId and redirects to full viewer URL
-
-**Technical Details:**
-- Short IDs: 6 alphanumeric characters (56 billion possible combinations)
-- TTL: 7-day automatic expiration via DynamoDB TTL attribute
-- Collision handling: Checks for existing IDs before saving (max 5 retries)
-- CloudFront behavior: Routes `/s/*` to API Gateway → PhotoSnapRedirect Lambda
-
-**Mobile Integration:**
-- Native share sheet on iOS/Android (via `navigator.share` API)
-- Automatic fallback to clipboard API on desktop browsers
-- Legacy browser support via `execCommand('copy')`
-- Manual copy input as final fallback
-
-**Benefits:**
-- Share links work perfectly in SMS, WhatsApp, iMessage, etc.
-- Professional appearance (35 chars vs 2000+)
-- Reduced bandwidth and improved user experience
-- No additional cost (within free tier)
-
-### 4. CORS Configuration
-**Challenge:** API Gateway's automatic CORS injection failed to apply headers correctly for cross-origin requests.
-
-**Solution:** 
-- Configured HTTP API CORS settings with specific origin (`https://photosnap.pro`)
-- Lambda explicitly handles OPTIONS preflight requests returning 200 status
-- All responses include `Access-Control-Allow-Origin` header
-- S3 photos bucket CORS allows GET requests from photosnap.pro
-
-### 5. Custom Domain with CloudFront
-**Setup:**
-- Domain purchased and nameservers pointed to Route 53
-- CloudFront distribution created with S3 website endpoint as origin
-- SSL certificate requested via ACM in us-east-1 (required for CloudFront)
-- Route 53 A records (alias) point to CloudFront distribution
-- Cache invalidation strategy for deployment updates
-
-**Benefits:**
-- Professional branding (photosnap.pro vs long S3 URL)
-- HTTPS/SSL encryption for security
-- Global edge locations for low latency
-- Caching improves performance and reduces costs
-
-### 6. Least-Privilege Security Model
-Instead of proxying S3 requests through Lambda (costly and high-latency), the application uses:
-- **Per-User IAM Roles:** Each user gets dedicated role with access limited to `s3://bucket-name/username/*`
-- **STS AssumeRole:** Lambda assumes user's role and returns temporary credentials (1-hour expiry)
-- **Direct S3 Access:** Client uploads/downloads directly using temporary credentials
-
-This approach is highly scalable, cost-effective, and follows the principle of least privilege.
-
-### 7. Password Security
-- Passwords hashed with SHA256 before storage in DynamoDB
-- Reset tokens are 6-digit codes with 15-minute expiration
-- Token-based password recovery prevents email dependency
-
-### 8. Data Resilience Strategy
-**DynamoDB PITR (35 days):**
-- Continuous backup of all user data, credentials, and IAM role mappings
-- Point-in-time restore capability for disaster recovery
-- Protects against accidental deletions or data corruption
-- Meets compliance requirements for data retention
-
-**Multi-AZ Replication:**
-- DynamoDB automatically replicates data across multiple availability zones
-- S3 Standard storage class provides cross-AZ redundancy
-- CloudFront uses multiple edge locations for high availability
-
-**Monitoring and Alerting:**
-- CloudWatch alarms notify on error rate increases (>5 errors per 5 minutes)
-- Lambda execution logs captured for debugging and audit trails
-- API Gateway access logs track all API requests
-
-## API Endpoints
-
-**Base URL:** `https://kjencmxwf0.execute-api.us-east-2.amazonaws.com/auth/auth`
-
-All requests are POST with JSON body:
-
-| **Action** | **Description** | **Request Body** | **Response** |
-| :--- | :--- | :--- | :--- |
-| `signup` | Create new user account | `{action, username, password}` | Success message + IAM role created |
-| `login` | Authenticate user | `{action, username, password}` | Temporary credentials + S3 config |
-| `request-reset` | Generate password reset token | `{action, username}` | 6-digit token (15 min expiry) |
-| `reset-password` | Reset password with token | `{action, username, resetToken, newPassword}` | Success confirmation |
-| `get-upload-url` | Get pre-signed upload URL | `{action, username, fileName, fileType}` | Signed PUT URL (5 min expiry) |
-| `list-photos` | List user's photos | `{action, username}` | Array of photos with signed GET URLs (1 hr expiry) |
-| `get-delete-url` | Get pre-signed delete URL | `{action, username, fileName}` | Signed DELETE URL (5 min expiry) |
-| `get-share-url` | Get shareable public link | `{action, username, fileName}` | Signed GET URL (7 day expiry) |
-| `create-short-url` | Generate shortened URL | `{action, longUrl}` | Short URL with 6-char ID (7 day expiry) |
-
-## File Structure
-
-```
-photosnap-pro/
-├── README.md
-├── docs/
-│   ├── 01-architecture-diagram.md
-│   ├── 02-deployed-environment.md
-│   ├── 03-cost-analysis.md
-│   ├── 04-security-overview.md
-│   └── 05-resilience-walkthrough.md
-├── frontend/
-│   ├── index.html          # Main dashboard with auth forms and photo gallery
-│   ├── landing.html        # Marketing landing page
-│   ├── viewer.html         # Branded photo viewer for shared links
-│   ├── styles.css          # Dashboard styling
-│   ├── landing.css         # Landing page styling
-│   └── app.js              # Frontend logic (auth, upload, share with URL shortener)
-└── backend/
-    └── lambda/
-        ├── auth-function/
-        │   └── index.mjs   # PhotoSnapAuthFunction: auth, photos, URL shortening
-        └── redirect-function/
-            └── index.mjs   # PhotoSnapRedirect: short link resolution and redirects
-```
-
-## Deployment Architecture
-
-### Infrastructure Components
-
-**Database Layer:**
-- DynamoDB users table created with on-demand billing mode for cost efficiency
-- DynamoDB short links table with TTL enabled for automatic expiration after 7 days
-- Point-in-Time Recovery enabled with 35-day retention window for data protection
-- Partition key configured on username attribute for optimal query performance
-
-**Storage Layer:**
-- Frontend S3 bucket configured for static website hosting with landing.html as index
-- Photos S3 bucket with versioning enabled for object recovery capabilities
-- CORS policies configured on photos bucket to allow cross-origin requests from custom domain
-
-**Compute Layer:**
-- Lambda function deployed with Node.js 20.x runtime and 512MB memory allocation
-- Execution role configured with least-privilege permissions for DynamoDB, IAM, STS, and S3
-- 30-second timeout configured to handle pre-signed URL generation and authentication flows
-
-**Monitoring Layer:**
-- CloudWatch Logs configured with 7-day retention for Lambda and API Gateway
-- CloudWatch Alarm created to monitor Lambda errors with 5-error threshold over 5-minute period
-- SNS topic configured for email notifications on alarm triggers
-
-**API Layer:**
-- HTTP API created in API Gateway for lightweight, cost-effective API management
-- CORS configuration set to allow POST and OPTIONS methods from custom domain
-- Lambda proxy integration configured for all /auth endpoint requests
-
-**CDN and DNS Layer:**
-- ACM certificate requested in us-east-1 region for CloudFront compatibility
-- CloudFront distribution configured with S3 website endpoint as origin
-- CloudFront behavior added for /s/* path routing to redirect Lambda for URL shortener
-- Route 53 hosted zone created with A record alias pointing to CloudFront distribution
-- Cache invalidation strategy implemented for zero-downtime deployments
-
-**Security Configuration:**
-- Per-user IAM roles generated dynamically on signup with folder-level S3 access
-- STS temporary credentials issued with 1-hour expiration for client-side operations
-- All HTTP traffic automatically redirected to HTTPS via CloudFront viewer protocol policy
-
-## Security Considerations
-
-1. **No Credentials in Browser:** Pre-signed URLs eliminate need for AWS credentials in client-side code
-2. **Base64 Encoding:** Preserves AWS security tokens in shareable URLs (prevents `+` sign corruption)
-3. **Time-Limited Access:** All signed URLs expire automatically (5 min to 7 days depending on operation)
-4. **Folder Isolation:** IAM policies restrict users to their own S3 folder only
-5. **HTTPS Only:** CloudFront enforces HTTPS, redirecting HTTP requests
-6. **CORS Properly Configured:** Prevents unauthorized cross-origin requests
-7. **Password Hashing:** SHA256 ensures passwords never stored in plaintext
-8. **Token Expiration:** Password reset tokens expire after 15 minutes
-9. **Data Backup:** PITR enabled with 35-day retention for disaster recovery
-10. **Error Monitoring:** CloudWatch alarms alert on abnormal error rates
-11. **Short Link Expiration:** URL shortener links auto-expire after 7 days via TTL
-
-## Performance Optimizations
-
-- **CloudFront Edge Caching:** Static assets served from global edge locations
-- **Direct S3 Upload:** Files uploaded directly to S3 without Lambda proxy (lower latency)
-- **Lazy Loading:** Photos loaded on-demand in gallery view
-- **Pre-signed URL Caching:** View URLs valid for 1 hour to reduce Lambda invocations
-- **Base64 Encoding:** Lightweight encoding for share URLs (no server processing)
-- **Serverless Auto-scaling:** Lambda and API Gateway scale automatically with demand
-- **URL Shortening:** Reduces bandwidth and improves mobile UX (35 chars vs 2000+)
-
-## Future Enhancements
-
-- Photo albums/collections
-- Image compression and thumbnail generation
-- Email-based password reset (SES integration)
-- Social login (Cognito integration)
-- Analytics dashboard (view counts, shares)
-- Batch photo operations
-- Photo editing capabilities
-- Mobile app (React Native)
-- Share link analytics (track views, clicks)
-- Advanced monitoring dashboards (CloudWatch Insights)
-- Custom short link domains (e.g., ps.pro/abc123)
-- QR code generation for short links
-- Custom vanity URLs (e.g., /s/mydog instead of /s/abc123)
-
-## Technologies Used
-
-- **Frontend:** Vanilla JavaScript, HTML5, CSS3
-- **Backend:** AWS Lambda (Node.js 20.x)
-- **Database:** Amazon DynamoDB (with PITR, 2 tables)
-- **Storage:** Amazon S3
-- **API:** AWS API Gateway (HTTP API)
-- **CDN:** Amazon CloudFront
-- **DNS:** Amazon Route 53
-- **Security:** AWS IAM, AWS STS, AWS ACM
-- **Monitoring:** Amazon CloudWatch (Logs + Alarms)
-- **Encoding:** Base64 for secure URL parameter passing
-- **URL Shortening:** Base62 encoding (alphanumeric) with DynamoDB storage
-
-## Cost Optimization
-
-This serverless architecture is highly cost-effective:
-- **Lambda:** Pay per request (1M free requests/month)
-- **DynamoDB (2 tables):** On-demand pricing with PITR ($0.20/GB-month for backup storage)
-- **S3:** Pay for storage and bandwidth only
-- **CloudFront:** Free tier includes 1TB data transfer
-- **API Gateway:** Pay per request (1M free requests/month)
-- **CloudWatch:** Free tier includes 5GB logs, 10 alarms
-- **Route 53:** $0.50/month for hosted zone
-
-**Estimated monthly cost:**
-- **Personal use (< 100 users, < 10GB photos, < 1000 shares/month):** $0.50-$2/month
-- **Small business (1,000 users, 100GB photos, 10k shares/month):** $8-15/month
-- **Most services within AWS free tier**
-
-## License
-
-MIT License - feel free to use this project for learning or commercial purposes.
-
-## Author
-
-Built as a portfolio project demonstrating serverless architecture, AWS security best practices, modern web development, fault-tolerant design, mobile-first UX, and growth marketing through viral sharing loops.
+**Live Demo:** [photosnap.pro](https://photosnap.pro)  
+**Infrastructure:** Fully serverless AWS architecture with custom domain
 
 ---
 
-**Created:** November 2025
+## Architecture
+```mermaid
+graph TB
+    User[User Browser] -->|DNS Lookup| R53[Route 53<br/>photosnap.pro]
+    R53 -->|Route to Edge| CF[CloudFront CDN<br/>d28lkulgkw21sq]
+    
+    CF --> S3Web[S3 Static Site<br/>photosnap-frontend]
+    CF --> APIGW1[API Gateway HTTP<br/>PhotoSnapAPI<br/>kjencmxwf0]
+    CF -->|/s/* paths| APIGW2[API Gateway HTTP<br/>PhotoSnapRedirect<br/>j8os8zijia]
+    
+    APIGW1 --> Lambda1[Lambda<br/>PhotoSnapAuthFunction<br/>Node.js 20.x - 128MB - 3s]
+    APIGW2 --> Lambda2[Lambda<br/>PhotoSnapRedirect<br/>Node.js 20.x - 128MB - 3s]
+    
+    Lambda1 --> S3Photos[S3 Bucket<br/>photosnap-photos<br/>Pre-signed URLs]
+    Lambda1 --> Users[(PhotoSnapUsers<br/>Credentials + IAM Roles)]
+    Lambda1 --> ShortLinks[(PhotoSnapShortLinks<br/>URL Mappings<br/>7-day TTL)]
+    Lambda2 --> ShortLinks
+    
+    Lambda1 --> IAM[IAM Roles<br/>PhotoSnapS3AuthLambdaExecutionRole<br/>Per-User Folder Access]
+    Lambda1 --> STS[STS<br/>Temporary Credentials<br/>1-hour tokens]
+    
+    User -->|Direct Upload/Download| S3Photos
+    
+    Lambda1 --> CW1[CloudWatch Logs<br/>/aws/lambda/PhotoSnapAuthFunction]
+    Lambda2 --> CW2[CloudWatch Logs<br/>/aws/lambda/PhotoSnapRedirect]
+    
+    style Lambda1 fill:#FF9900,color:#fff
+    style Lambda2 fill:#FF9900,color:#fff
+    style S3Photos fill:#569A31,color:#fff
+    style S3Web fill:#569A31,color:#fff
+    style Users fill:#4053D6,color:#fff
+    style ShortLinks fill:#4053D6,color:#fff
+    style APIGW1 fill:#FF4F8B,color:#fff
+    style APIGW2 fill:#FF4F8B,color:#fff
+    style CF fill:#8C4FFF,color:#fff
+    style R53 fill:#8C4FFF,color:#fff
+    style IAM fill:#DD344C,color:#fff
+    style STS fill:#DD344C,color:#fff
+    style CW1 fill:#FF9900,color:#fff
+    style CW2 fill:#FF9900,color:#fff
+```
+
+---
+
+## What It Does
+
+- **Secure Authentication**: User signup/login with SHA256 password hashing and token-based password reset
+- **Direct S3 Uploads**: Pre-signed URLs enable client-side uploads without exposing AWS credentials
+- **Photo Gallery**: Grid view with modal viewer and secure deletion
+- **Viral Sharing Loop**: Branded viewer page with marketing CTA converts shares into signups
+- **URL Shortener**: Mobile-friendly short links (35 chars vs 2000+) prevent SMS/WhatsApp message splitting
+- **Native Mobile Share**: iOS/Android share sheet integration with automatic clipboard fallback
+
+---
+
+## Architecture Decisions
+
+**Pre-signed URL Pattern**
+- Lambda generates time-limited, cryptographically signed S3 URLs (5min upload, 1hr view, 7-day share)
+- Client uploads/downloads directly to S3 without proxying through Lambda
+- Zero AWS credentials in browser or network traffic
+- Automatic expiration revokes access without manual cleanup
+
+**URL Shortener for Mobile UX**
+- Share links were 2000+ characters, causing SMS/WhatsApp to split URLs across messages
+- 6-character alphanumeric IDs (56 billion combinations) stored in DynamoDB with 7-day TTL
+- CloudFront routes `/s/*` paths to redirect Lambda for instant resolution
+- Reduced bandwidth, professional appearance, perfect mobile compatibility
+
+**Viral Marketing Architecture**
+- Share button generates viewer URL: `photosnap.pro/viewer.html?u=<base64-url>`
+- Branded viewer displays photo with "Start Free Today" CTA
+- Base64 encoding preserves AWS security tokens (prevents `+` sign corruption that breaks URLs)
+- Converts every photo share into marketing opportunity (growth loop)
+
+**Least-Privilege Security Model**
+- Per-user IAM roles created dynamically on signup with folder-level S3 access only
+- STS issues temporary credentials (1-hour expiry) for authenticated operations
+- Lambda assumes user's role for pre-signed URL generation
+- Eliminates need for Lambda to proxy S3 requests (lower cost, lower latency)
+
+**Cost Optimization**
+- DynamoDB on-demand pricing: $0 cost when idle
+- Lambda 128MB memory: Right-sized for URL generation workload
+- CloudFront caching: Reduces origin requests and Lambda invocations
+- Direct S3 access: Eliminates Lambda data transfer costs
+- TTL auto-expiration: Automatic cleanup of expired short links
+
+**Performance**
+- CloudFront global edge network for sub-100ms static asset delivery
+- Direct S3 uploads bypass Lambda (no proxy overhead)
+- Pre-signed URL caching: 1-hour validity reduces Lambda calls
+- API Gateway HTTP API: Lightweight, low-latency alternative to REST API
+
+**Scalability**
+- Lambda auto-scales from 0 to 1000+ concurrent executions
+- DynamoDB on-demand handles traffic spikes without capacity planning
+- CloudFront distributes load across global edge locations
+- Serverless architecture eliminates server management
+
+**Trade-offs Made**
+- SHA256 password hashing vs bcrypt (faster but less secure, acceptable for portfolio)
+- 3-second Lambda timeout vs 30s (adequate for pre-signed URL generation)
+- No WAF (saves $5/month, acceptable for low-traffic project)
+- Would add for production: bcrypt, longer timeouts for batch operations, WAF for DDoS protection
+
+---
+
+## Tech Stack
+
+**Backend**: Node.js 20.x, AWS Lambda (2 functions), Boto3  
+**Storage**: 2 DynamoDB tables (on-demand), 2 S3 buckets  
+**API**: 2 API Gateway HTTP APIs  
+**CDN**: CloudFront (d28lkulgkw21sq.cloudfront.net)  
+**DNS**: Route 53 (photosnap.pro)  
+**Security**: AWS IAM (per-user roles), AWS STS (temporary credentials)  
+**Monitoring**: CloudWatch Logs (2 log groups)  
+**Encoding**: Base64 for URL parameter preservation
+
+---
+
+## Infrastructure Resources
+
+**Compute**
+- Lambda: PhotoSnapAuthFunction (auth, photos, URL shortening)
+- Lambda: PhotoSnapRedirect (short link resolution)
+- IAM: PhotoSnapS3AuthLambdaExecutionRole (shared execution role)
+
+**Storage**
+- DynamoDB: PhotoSnapUsers (credentials, IAM role ARNs)
+- DynamoDB: PhotoSnapShortLinks (URL mappings with 7-day TTL)
+- S3: photosnap-frontend-153600892207 (static website)
+- S3: photosnap-photos-153600892207 (user photo storage)
+
+**Networking**
+- API Gateway HTTP: PhotoSnapAPI (kjencmxwf0) - main auth/photo endpoints
+- API Gateway HTTP: PhotoSnapRedirect (j8os8zijia) - short link redirects
+- CloudFront: E1G6FY0M8YYIVX (global CDN distribution)
+- Route 53: photosnap.pro hosted zone (Z03582291W0DMC8P62WKI)
+
+**Monitoring**
+- CloudWatch: /aws/lambda/PhotoSnapAuthFunction
+- CloudWatch: /aws/lambda/PhotoSnapRedirect
+
+---
+
+## Key Features
+
+**Security Architecture**
+- Pre-signed URLs eliminate AWS credentials in client code
+- Per-user IAM roles with S3 folder isolation (`s3://bucket/username/*`)
+- STS temporary credentials (1-hour expiry) for time-limited access
+- SHA256 password hashing prevents plaintext credential storage
+- HTTPS enforced via CloudFront with automatic HTTP → HTTPS redirect
+
+**Mobile-First UX**
+- Native share sheet on iOS/Android (`navigator.share` API)
+- Automatic fallback to clipboard API on desktop browsers
+- URL shortener prevents message splitting in SMS/WhatsApp/iMessage
+- Responsive grid layout with touch-optimized controls
+
+**Growth Marketing Integration**
+- Branded viewer page with conversion-optimized CTA
+- Every photo share becomes marketing opportunity
+- Professional short links (photosnap.pro/s/abc123)
+- Viral loop: viewers see PhotoSnap branding → sign up → share their photos
+
+**Operational Resilience**
+- CloudWatch logging for all Lambda invocations
+- DynamoDB automatic multi-AZ replication
+- S3 11-9's durability with cross-AZ redundancy
+- CloudFront automatic failover across edge locations
+
+---
+
+## API Endpoints
+
+**PhotoSnapAPI (kjencmxwf0)** - Main authentication and photo operations
+
+| Endpoint | Action | Description |
+|----------|--------|-------------|
+| `/auth/auth` | signup | Create account, generate per-user IAM role |
+| `/auth/auth` | login | Authenticate, return STS temporary credentials |
+| `/auth/auth` | request-reset | Generate 6-digit reset token (15min expiry) |
+| `/auth/auth` | reset-password | Reset password with token verification |
+| `/auth/auth` | get-upload-url | Generate pre-signed PUT URL (5min expiry) |
+| `/auth/auth` | list-photos | Return user photos with pre-signed GET URLs (1hr expiry) |
+| `/auth/auth` | get-delete-url | Generate pre-signed DELETE URL (5min expiry) |
+| `/auth/auth` | get-share-url | Generate pre-signed GET URL (7-day expiry) |
+| `/auth/auth` | create-short-url | Generate 6-char short ID with DynamoDB mapping |
+
+**PhotoSnapRedirect (j8os8zijia)** - URL shortener redirects
+
+| Endpoint | Action | Description |
+|----------|--------|-------------|
+| `/s/{shortId}` | GET | Look up shortId in DynamoDB, 302 redirect to full URL |
+
+---
+
+## Key Stats
+
+- **Response Time**: Sub-1-second for URL generation, instant redirects
+- **Monthly Cost**: $0.50-$2 (Route 53 + minimal usage charges)
+- **Availability**: 99.9%+ (serverless inherent reliability)
+- **Infrastructure**: 2 Lambda functions, 2 DynamoDB tables, 2 S3 buckets, 2 API Gateways, CloudFront, Route 53
+- **Short Link Capacity**: 56 billion unique combinations (6-char base62)
+
+---
+
+## What This Demonstrates
+
+**Advanced Serverless Patterns**
+- Pre-signed URL architecture for secure, direct client-S3 communication
+- Dynamic IAM role creation for per-user resource isolation
+- STS temporary credentials for time-limited access control
+- URL shortening service with automatic TTL expiration
+
+**Production Security Practices**
+- Zero credentials in browser (pre-signed URLs only)
+- Least-privilege IAM (folder-level S3 access per user)
+- Base64 encoding for AWS token preservation in URLs
+- HTTPS enforcement via CloudFront
+
+**Growth Engineering**
+- Viral sharing loop with branded viewer pages
+- Mobile-first UX with native share sheet integration
+- URL shortening prevents mobile messaging app issues
+- Marketing CTA embedded in every shared photo
+
+**Cloud Architecture**
+- Multi-service AWS integration (Lambda, DynamoDB, S3, API Gateway, CloudFront, Route 53, IAM, STS)
+- Custom domain with global CDN
+- CloudWatch logging for observability
+- Cost-optimized resource selection (on-demand pricing, right-sized Lambda)
+
+**Full-Stack Development**
+- Backend: Node.js Lambda with AWS SDK v3
+- Frontend: Vanilla JavaScript with modern Web APIs (share, clipboard)
+- Infrastructure: Multi-region DNS, global CDN, custom domain
+- DevOps: Serverless deployment, zero server management
+
+---
+
+**Status**: Live in production at photosnap.pro  
+**Monthly Cost**: $0.50-$2  
+**Completed**: November 2025
+**Region**: us-east-2
+
+---
+
+**Built with AWS | Secured with IAM + STS | Powered by Pre-signed URLs**
+```
